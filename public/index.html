@@ -337,14 +337,14 @@
 <div id="screen-home" class="screen active">
   <div id="home-error" class="error-msg"></div>
 
-  <div class="card">
+  <div id="home-create" class="card">
     <h2>ルームを作る</h2>
     <input type="text" id="create-name" placeholder="あなたの名前" maxlength="16">
     <button class="btn-primary" onclick="createRoom()">ルームを作成</button>
   </div>
 
-  <div class="card">
-    <h2>ルームに参加</h2>
+  <div id="home-join" class="card">
+    <h2 id="join-title">ルームに参加</h2>
     <input type="text" id="join-name" placeholder="あなたの名前" maxlength="16">
     <input type="text" id="join-code" placeholder="ルームコード（例: AB12）" maxlength="4" style="text-transform:uppercase">
     <button class="btn-secondary" onclick="joinRoom()">参加する</button>
@@ -356,9 +356,12 @@
   <div id="lobby-error" class="error-msg"></div>
 
   <div class="card">
-    <h2>ルームコード</h2>
+    <h2>招待リンク</h2>
     <div class="room-code" id="lobby-room-code" onclick="copyCode()">----</div>
-    <p class="text-sm text-center">クリックでコピー</p>
+    <div id="invite-url-box" style="background:#0a1628;border-radius:10px;padding:0.7rem 1rem;margin:0.6rem 0;word-break:break-all;font-size:0.8rem;color:#aaa;cursor:pointer" onclick="copyInviteUrl()">
+      <span id="invite-url-text"></span>
+    </div>
+    <button class="btn-secondary btn-sm" onclick="copyInviteUrl()">🔗 招待URLをコピー</button>
   </div>
 
   <div class="card">
@@ -518,6 +521,17 @@ let state = {
 // ---- Init ----
 function init() {
   drawRandomTopics();
+
+  // URLに ?room=XXXX があれば参加画面のみ表示
+  const params = new URLSearchParams(window.location.search);
+  const roomParam = params.get('room');
+  if (roomParam) {
+    document.getElementById('home-create').style.display = 'none';
+    document.getElementById('join-code').value = roomParam.toUpperCase();
+    document.getElementById('join-code').readOnly = true;
+    document.getElementById('join-title').textContent = 'ルームに参加';
+    document.getElementById('join-name').focus();
+  }
 }
 
 function drawRandomTopics() {
@@ -579,6 +593,16 @@ function copyCode() {
   navigator.clipboard.writeText(state.roomId).catch(() => {});
 }
 
+function copyInviteUrl() {
+  const url = `${location.origin}?room=${state.roomId}`;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.querySelector('#host-lobby-controls button, button[onclick="copyInviteUrl()"]');
+    const orig = document.querySelector('button[onclick="copyInviteUrl()"]').textContent;
+    document.querySelector('button[onclick="copyInviteUrl()"]').textContent = 'コピーしました！';
+    setTimeout(() => document.querySelector('button[onclick="copyInviteUrl()"]').textContent = orig, 1500);
+  }).catch(() => {});
+}
+
 function setTopic() { setTopicFromInput(); }
 
 function startGame() {
@@ -588,6 +612,8 @@ function startGame() {
 function renderLobby(room) {
   document.getElementById('lobby-room-code').textContent = room.id;
   state.roomId = room.id;
+  const inviteUrl = `${location.origin}?room=${room.id}`;
+  document.getElementById('invite-url-text').textContent = inviteUrl;
 
   const ul = document.getElementById('lobby-players');
   ul.innerHTML = '';
