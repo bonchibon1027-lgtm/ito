@@ -146,10 +146,14 @@
   }
   .order-list {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.5rem;
     min-height: 48px;
+    overflow-x: auto;
+    padding-bottom: 0.4rem;
   }
+  .order-list::-webkit-scrollbar { height: 4px; }
+  .order-list::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 2px; }
 
   .player-token {
     display: flex;
@@ -162,6 +166,7 @@
     cursor: grab;
     user-select: none;
     font-size: 0.9rem;
+    flex-shrink: 0;
     transition: border-color 0.2s, background 0.2s;
   }
   .player-token:active { cursor: grabbing; }
@@ -435,9 +440,15 @@
 const socket = io();
 
 const PRESET_TOPICS = [
-  '好きな食べ物', '速いもの', '甘いもの', '怖いもの',
-  '強いもの', '便利な道具', '楽しいこと', '高いもの',
-  '大きいもの', '難しいこと', '癒されるもの', '危ないもの',
+  '人生でやらかした度', '風呂に入りたくない度',
+  '母親に見せられない検索履歴度', '飲み会でやらかした度',
+  '宇宙人に会った時のパニック度', '深夜のテンション',
+  '告白された回数', '絶対に負けられない戦い',
+  '人に言えない趣味度', 'LINEを既読無視する度',
+  '給食で残した量', '親に怒られた回数',
+  '睡眠時間', '忘れ物の多さ',
+  'カラオケの音痴度', '運動神経の悪さ',
+  '人見知り度', '心の中のオタク度',
 ];
 
 let state = {
