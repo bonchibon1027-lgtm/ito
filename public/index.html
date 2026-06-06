@@ -292,31 +292,22 @@
 
   .separator { height: 1px; background: #0f3460; margin: 1rem 0; }
 
-  .topic-category { margin-bottom: 0.8rem; }
-  .topic-category-label {
-    font-size: 0.75rem;
-    color: #888;
-    margin-bottom: 0.4rem;
-    font-weight: 600;
-  }
-  .topics-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-bottom: 0.4rem;
-  }
-  .topic-btn {
-    padding: 0.4rem 0.7rem;
-    font-size: 0.8rem;
+  .random-topic-card {
+    width: 100%;
+    padding: 1rem 1.2rem;
     background: #0f3460;
-    color: #ccc;
-    border-radius: 20px;
-    border: 1px solid #1a3460;
+    border: 2px solid #1a3460;
+    border-radius: 12px;
+    color: #eee;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: left;
     cursor: pointer;
-    transition: background 0.2s;
-    width: auto;
+    margin-bottom: 0.5rem;
+    transition: border-color 0.2s, background 0.2s;
   }
-  .topic-btn:hover { background: #1a4480; color: #fff; }
+  .random-topic-card:hover { border-color: #e94560; background: #1a2a50; }
+  .random-topic-card.selected { border-color: #f5a623; background: #1a2a50; color: #f5a623; }
 
   .mt { margin-top: 0.8rem; }
   .text-center { text-align: center; }
@@ -377,10 +368,11 @@
 
   <div id="host-lobby-controls" class="card" style="display:none">
     <h2>お題を設定</h2>
-    <button class="btn-primary" style="margin-bottom:0.8rem" onclick="randomTopic()">🎲 ランダムで選ぶ</button>
-    <div id="preset-topics"></div>
-    <input type="text" id="topic-input" placeholder="または自由入力..." maxlength="40">
-    <button class="btn-secondary btn-sm mt" onclick="setTopic()">お題を決定</button>
+    <div id="random-topics-area" style="margin-bottom:0.8rem"></div>
+    <button class="btn-secondary" style="margin-bottom:0.8rem" onclick="drawRandomTopics()">🎲 別の3つを引く</button>
+    <div class="separator"></div>
+    <input type="text" id="topic-input" placeholder="または自由入力..." maxlength="40" style="margin-top:0.8rem">
+    <button class="btn-secondary btn-sm mt" onclick="setTopicFromInput()">自由入力で決定</button>
     <div class="separator"></div>
     <div id="current-topic-display" style="text-align:center; color:#f5a623; margin-bottom:0.8rem; min-height:1.5em; font-weight:600"></div>
     <button class="btn-primary" id="start-btn" onclick="startGame()" disabled>ゲーム開始</button>
@@ -447,73 +439,70 @@
 <script>
 const socket = io();
 
-const TOPIC_CATEGORIES = {
-  '💀 やらかし': [
-    '人生最大のやらかし度',
-    '飲み会でやらかした伝説度',
-    '親に絶対に言えない話の重さ',
-    '修学旅行の夜の武勇伝度',
-    '寝坊でヤバかった経験度',
-    '告白して玉砕した時のダメージ',
-    '送信先を間違えたLINEのやばさ',
-    '人生で一番恥ずかしかった瞬間',
-  ],
-  '🌙 深夜': [
-    '深夜テンションのぶっとび度',
-    '夜中に突然始まる謎の行動力',
-    '夜中に食べてはいけないもの食べた罪悪感',
-    '朝4時まで起きてた時の廃人度',
-    '徹夜明けのハイテンション度',
-  ],
-  '😤 日常': [
-    '風呂に入りたくない度',
-    'LINEを既読無視したくなる度',
-    '布団から出られない度',
-    '人見知り発動レベル',
-    '遅刻グセのひどさ',
-    '忘れ物の多さ',
-    '部屋の汚さ',
-    '説明書を読まない度',
-  ],
-  '🍜 食': [
-    '絶対に譲れない食へのこだわり度',
-    '給食で残してた量',
-    '深夜に食べるラーメンのうまさ',
-    '辛いもの耐性',
-    '激マズ料理を食べた時の笑顔で乗り切った度',
-  ],
-  '💘 恋愛': [
-    '告白された回数（自称含む）',
-    '元カノ・元カレを引きずった期間',
-    'ひと目惚れした回数',
-    '修羅場をくぐった経験値',
-    '好きな人の前でやらかした度',
-  ],
-  '🏫 学校': [
-    '授業中に寝てた量',
-    '先生に怒られた回数',
-    'テスト前日の追い込み力',
-    '体育の授業でのトラウマ度',
-    '卒業式で泣いた量',
-  ],
-  '🎮 オタク': [
-    '隠れオタク度',
-    'ゲームに溶かした時間',
-    'アニメを一気見した最長時間',
-    '推しへの狂気度',
-    'ひとりカラオケ経験値',
-  ],
-  '🌍 人生': [
-    '人生の残機数',
-    '運の強さ',
-    '生きてきた中での運動神経の悪さ',
-    '人生で感じた孤独感',
-    '死ぬまでにやりたいこと残量',
-    '自分のコミュ力への過信度',
-  ],
-};
-
-const PRESET_TOPICS = Object.values(TOPIC_CATEGORIES).flat();
+const ALL_TOPICS = [
+  'カッコいい苗字・名前','かわいいもの','小学生が好きな言葉','中高生が好きな言葉',
+  '人生で大切なもの・こと','雪山で遭難したときにもっていたいもの','地球観光に来た宇宙人にあげたいお土産',
+  'テンションが上がるもの・こと','時代遅れの言葉','オタクが喜ぶセリフ・設定','グッとくる仕草・行動',
+  '結婚したい有名人','結婚したいキャラ（アニメ・漫画・ゲーム）','親になってほしいキャラ（アニメ・漫画・ゲーム）',
+  'ほしい特殊能力・武器（必殺技・道具）','便利なもの','されたいプロポーズ（セリフ・シチュエーション）',
+  '旅先ですることの人気','白米に合いそうなもの','中学生になって考えよう カッコいいもの・こと',
+  '鳥肌が立つこと','1000円くらいまででできる楽しいこと','桃太郎になって考えよう 頼りになる家来',
+  '動物園にいる動物の人気','男女がそれぞれ好きそうなもの','祖父母になって考えよう 孫に言われたら嬉しい言葉',
+  'ふだん聞く言葉の頻度','破壊力のある言葉（パワーワード）','冷蔵庫になって考えよう 入れてほしいもの',
+  '行事の人気','宝箱をあけて入ってたら嬉しいもの','幼稚園児になって考えよう テンションが上がるとき',
+  '上に乗ってみたい動物','商店街のくじの景品でランクが高いもの','SNSを活用するにあたって大切なもの・こと',
+  '夏に行きたい場所や国の人気','「一生これしか食べられない」なら選びたい食べもの',
+  '猫になって考えよう 心地のいい場所','いい匂いのもの','強そうな5文字',
+  '芸人になって考えよう ヤバい罰ゲーム','コンビニで買える食べ物の人気',
+  '公園の石をどかしたとき、あったらビックリするもの','小学生になって考えよう 嬉しいこと',
+  '明るいもの','言われたら嬉しいプロポーズの言葉','探検家になって考えよう ワクワクする場所',
+  '寿司ネタの人気','動物の特徴でほしいもの','お嬢様になって考えよう 優秀な執事',
+  '人からごちそうされたい食べ物','桃太郎の場面（お話のどのあたりか）',
+  '能力者になって考えよう ハデに使えそうな脳力','海の生き物の人気',
+  '冷蔵庫の中にあったらテンションが上がるもの','高校生になって考えよう 授業中、起きたら大変なこと',
+  '写真を撮りたくなるもの','どうしてもこれだけは許せないということ','幸せを感じること',
+  '新婚旅行先の人気','学校の先生に怒られそうなこと','犬になって考えよう よく行く場所',
+  '思わず見てしまうメールのタイトル','ボディビルダーになって考えよう 言われたいかけ声',
+  '生まれ変わったらなりたい動物','大人っぽい言動','動画配信者にとって必要な能力・資質',
+  '家族にしてもらったら嬉しいこと','ショックを受けた好きな人のクセ','侍になって考えよう 尽くしたいタイプの人',
+  '食べ物のやわらかさ','突然の一日オフ。最高の過ごし方は？','先生になって考えよう 卒業式に言われて嬉しい言葉',
+  '幼いころにほしかったもの','宇宙にいるときにやってみたい行動','お笑い芸人にとって必要な能力・資質',
+  '寝起きにしたいこと','変顔の度合い（実際にやる）','修学旅行生になって考えよう 行きたい旅行先',
+  '部屋の中にある大切なもの','痛い思い出（物理・精神どちらでも）','生きる上で大切なもの・こと',
+  '食べ物の辛さ','カッコいいと思うエピソード','就活中の大学生になって考えよう 働きたい職場',
+  '聞こえてきたら嬉しい音','厳しく無口な父に言われたら嬉しい言葉','アイドル業にとって必要な能力・資質',
+  '黒いもの','卒業式で流したら感動する音楽や効果音','魔法使いになって考えよう 使ってみたい魔法',
+  '日常に起こるいいこと','片思い中の好きな人に言われたら嬉しい言葉','仕事をする上で必要な能力・資質',
+  '眠くなるもの','見た目が子供に戻ったならしたいこと','馬主になって考えよう 速そうな馬の名前',
+  '投げたいもの','勇気ある行動','芸能事務所の社長になって考えよう 所属芸能人が起こしたら大変な事件',
+  '包まれたいもの','砂漠で遭難したときにほしいもの','超能力になって考えよう 友人の脳内を読んだらショックだった考え',
+  'ずっと見ていられるもの','死ぬまでにしたいこと','ヒーローになって演じよう カッコいいポーズ（実際にやる）',
+  'なつかしさを感じるもの・こと','テストでその点を取ったときの反応','母になって考えよう 子供が寝言で言っていたら嬉しいこと',
+  '便利なスマホアプリ','叫ぶと必殺技っぽい言葉（創作OK）','芸能人になって考えよう 「これドッキリじゃね？」と疑うできごと',
+  '足の速い動物','これは恋か愛か','人間関係で必要な能力・資質','おみやげにもらったら嬉しいもの',
+  '奇跡の体験','タイムトラベラーになって考えよう 過去から持って帰りたいもの',
+  '朝ごはんに食べたいもの','お尻から出てきたらビックリするもの','科学者になって考えよう 発明したい薬',
+  '踏んだら痛そうなもの','SNSでめちゃくちゃいいねされそうな投稿','疲れたときにしたいこと',
+  'あったらおいしそうなアイスクリームの味','赤ちゃんになって考えよう 最高の瞬間',
+  '家にある便利なもの','5歳児が言ったらビックリする言葉','魔王になって考えよう こんな勇者はイヤだ',
+  '大学生が反応する言葉','機嫌がいいときにしそうな行動','リーダーにとって必要な能力・資質',
+  '友達になりたい人の特徴','人生の中で、やる回数が多いこと','愛されていると思うこと',
+  'アンパンマンがやっていたらショックなこと','炎上しそうなこと','バレバレなズル休みの言い訳',
+  '2泊3日の旅行で忘れたら困るもの','上司から言われたらキツいこと','後輩から言われたらキツいこと',
+  'バイト仲間から言われたらキツいこと','先送りにしがちなこと','ラッキーと思う出来事',
+  '実際にあったらトラウマになりそうなこと','イヤすぎる罰ゲーム','疲労度を体の状態で表す',
+  '学校で起こりうる最大のピンチ','触るのが怖い虫','イライラしてしまうこと',
+  '日常で起こりうる恥ずかしいこと','緊張すること','異性から言われたらキツイこと',
+  '異性にドン引きしてしまう瞬間','初デートで起こったら一気に気持ちが冷めてしまうそうなこと',
+  '住みたい都道府県','行きたいチェーン店','デートで行きたい場所','強い漫画・アニメキャラクター',
+  'お酒の人気','もらったら嬉しいご当地お土産','パンの人気','お菓子の人気',
+  'カラオケで歌うのが難しい曲','色の人気','過大評価されている食べ物','甘いもの','偉い人',
+  '萌えること','渋いもの・こと','心に響く名言','いい上司の特徴','人気のブランド',
+  '売れそうな映画のタイトル','人気のアルバイト','厨二病っぽいもの・こと','美しいもの・こと',
+  '100年の恋も冷める行動','給食の人気','ホワイト企業の特徴','料理上手っぽい料理',
+  'おにぎりの具の人気','カラオケで歌ったら盛り上がる曲','あってほしいドラえもんの道具',
+  '人物やキャラクターのイメージ',
+];
 
 let state = {
   roomId: null,
@@ -528,36 +517,31 @@ let state = {
 
 // ---- Init ----
 function init() {
-  const container = document.getElementById('preset-topics');
-  Object.entries(TOPIC_CATEGORIES).forEach(([cat, topics]) => {
-    const section = document.createElement('div');
-    section.className = 'topic-category';
-    const label = document.createElement('div');
-    label.className = 'topic-category-label';
-    label.textContent = cat;
-    section.appendChild(label);
-    const grid = document.createElement('div');
-    grid.className = 'topics-grid';
-    topics.forEach(t => {
-      const btn = document.createElement('button');
-      btn.className = 'topic-btn';
-      btn.textContent = t;
-      btn.onclick = () => {
-        document.getElementById('topic-input').value = t;
-        setTopic();
-      };
-      grid.appendChild(btn);
-    });
-    section.appendChild(grid);
-    container.appendChild(section);
+  drawRandomTopics();
+}
+
+function drawRandomTopics() {
+  const area = document.getElementById('random-topics-area');
+  area.innerHTML = '';
+  const shuffled = [...ALL_TOPICS].sort(() => Math.random() - 0.5).slice(0, 3);
+  shuffled.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'random-topic-card';
+    btn.textContent = t;
+    btn.onclick = () => {
+      document.querySelectorAll('.random-topic-card').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      socket.emit('setTopic', { topic: t });
+    };
+    area.appendChild(btn);
   });
 }
 
-function randomTopic() {
-  const all = Object.values(TOPIC_CATEGORIES).flat();
-  const t = all[Math.floor(Math.random() * all.length)];
-  document.getElementById('topic-input').value = t;
-  setTopic();
+function setTopicFromInput() {
+  const t = document.getElementById('topic-input').value.trim();
+  if (!t) return;
+  document.querySelectorAll('.random-topic-card').forEach(b => b.classList.remove('selected'));
+  socket.emit('setTopic', { topic: t });
 }
 
 // ---- Screen management ----
@@ -595,11 +579,7 @@ function copyCode() {
   navigator.clipboard.writeText(state.roomId).catch(() => {});
 }
 
-function setTopic() {
-  const t = document.getElementById('topic-input').value.trim();
-  if (!t) return;
-  socket.emit('setTopic', { topic: t });
-}
+function setTopic() { setTopicFromInput(); }
 
 function startGame() {
   socket.emit('startGame');
