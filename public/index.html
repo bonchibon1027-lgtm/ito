@@ -347,7 +347,8 @@
     <h2 id="join-title">ルームに参加</h2>
     <input type="text" id="join-name" placeholder="あなたの名前" maxlength="16">
     <input type="text" id="join-code" placeholder="ルームコード（例: AB12）" maxlength="4" style="text-transform:uppercase">
-    <button class="btn-secondary" onclick="joinRoom()">参加する</button>
+    <button class="btn-secondary" onclick="joinRoom(false)" style="margin-bottom:0.5rem">参加する</button>
+    <button class="btn-secondary" onclick="joinRoom(true)" style="background:#1a2a3a;color:#888;font-size:0.9rem">👁 観戦する</button>
   </div>
 </div>
 
@@ -510,6 +511,7 @@ const ALL_TOPICS = [
 let state = {
   roomId: null,
   isHost: false,
+  isSpectator: false,
   myId: socket.id,
   myCard: null,
   players: [],
@@ -580,12 +582,12 @@ function createRoom() {
   socket.emit('createRoom', { playerName: name });
 }
 
-function joinRoom() {
+function joinRoom(isSpectator = false) {
   const name = document.getElementById('join-name').value.trim();
   const code = document.getElementById('join-code').value.trim().toUpperCase();
   if (!name) return showError('home', '名前を入力してください');
   if (!code) return showError('home', 'ルームコードを入力してください');
-  socket.emit('joinRoom', { playerName: name, roomId: code });
+  socket.emit('joinRoom', { playerName: name, roomId: code, isSpectator });
 }
 
 // ---- Lobby actions ----
@@ -617,7 +619,9 @@ function renderLobby(room) {
 
   const ul = document.getElementById('lobby-players');
   ul.innerHTML = '';
-  room.players.forEach(p => {
+  const participants = room.players.filter(p => !p.isSpectator);
+  const spectators = room.players.filter(p => p.isSpectator);
+  participants.forEach(p => {
     const li = document.createElement('li');
     const isHost = p.id === room.hostId;
     const isMe = p.id === socket.id;
@@ -628,6 +632,19 @@ function renderLobby(room) {
     `;
     ul.appendChild(li);
   });
+  if (spectators.length > 0) {
+    const sep = document.createElement('li');
+    sep.style.cssText = 'background:none;color:#555;font-size:0.75rem;padding:0.3rem 0.5rem;';
+    sep.textContent = '👁 観戦者';
+    ul.appendChild(sep);
+    spectators.forEach(p => {
+      const li = document.createElement('li');
+      const isMe = p.id === socket.id;
+      li.style.opacity = '0.6';
+      li.innerHTML = `<span style="width:1.2em;display:inline-block"></span><span>${escapeHtml(p.name)}</span>${isMe ? '<span class="you">あなた</span>' : ''}`;
+      ul.appendChild(li);
+    });
+  }
 
   if (state.isHost) {
     document.getElementById('host-lobby-controls').style.display = 'block';
@@ -649,6 +666,10 @@ function renderGame(topic, cardOrder, players) {
   state.players = players;
 
   document.getElementById('game-topic').textContent = topic;
+
+  // 観戦者は自分のカードを非表示
+  document.querySelector('.my-card').style.display = state.isSpectator ? 'none' : 'block';
+
   renderOrderList();
 
   if (state.isHost) {
@@ -657,6 +678,10 @@ function renderGame(topic, cardOrder, players) {
   } else {
     document.getElementById('host-game-controls').style.display = 'none';
     document.getElementById('guest-game-waiting').style.display = 'block';
+    if (state.isSpectator) {
+      document.getElementById('guest-game-waiting').textContent = '👁 観戦中...';
+      document.getElementById('guest-game-waiting').classList.remove('dot-anim');
+    }
   }
 }
 
@@ -684,6 +709,7 @@ function renderOrderList() {
 let dragSrc = null;
 
 function setupDrag(token) {
+  if (state.isSpectator) { token.draggable = false; token.style.cursor = 'default'; return; }
   token.addEventListener('dragstart', e => {
     dragSrc = token;
     token.classList.add('dragging');
@@ -825,9 +851,10 @@ function backToLobby() {
 // ---- Socket events ----
 socket.on('connect', () => { state.myId = socket.id; });
 
-socket.on('roomJoined', ({ roomId, isHost }) => {
+socket.on('roomJoined', ({ roomId, isHost, isSpectator }) => {
   state.roomId = roomId;
   state.isHost = isHost;
+  state.isSpectator = isSpectator;
   showScreen('lobby');
 });
 
@@ -846,8 +873,7 @@ socket.on('gameStarted', ({ room, topic, cardOrder }) => {
   state.topic = topic;
   state.cardOrder = cardOrder;
   state.players = room.players;
-  state.myCard = null;
-  document.getElementById('my-card-number').textContent = '?';
+  if (!state.myCard) document.getElementById('my-card-number').textContent = '?';
   showScreen('game');
   renderGame(topic, cardOrder, room.players);
 });

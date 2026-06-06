@@ -15,15 +15,20 @@ function generateRoomId() {
   return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
-function sanitizeRoom(room, requesterId) {
+function sanitizeRoom(room) {
   return {
     ...room,
     players: room.players.map(p => ({
       id: p.id,
       name: p.name,
+      isSpectator: p.isSpectator || false,
       hasCard: p.card !== null,
     })),
   };
+}
+
+function activePlayers(room) {
+  return room.players.filter(p => !p.isSpectator);
 }
 
 function assignCards(players) {
@@ -46,29 +51,62 @@ io.on('connection', (socket) => {
     rooms[roomId] = {
       id: roomId,
       hostId: socket.id,
-      players: [{ id: socket.id, name, card: null }],
+      players: [{ id: socket.id, name, card: null, isSpectator: false }],
       topic: '',
       phase: 'lobby',
       cardOrder: [],
     };
     socket.join(roomId);
     socket.roomId = roomId;
-    socket.emit('roomJoined', { roomId, isHost: true });
+    socket.emit('roomJoined', { roomId, isHost: true, isSpectator: false });
     io.to(roomId).emit('roomUpdated', sanitizeRoom(rooms[roomId]));
   });
 
-  socket.on('joinRoom', ({ playerName, roomId }) => {
+  socket.on('joinRoom', ({ playerName, roomId, isSpectator }) => {
     const name = playerName.trim().slice(0, 16);
     if (!name) return socket.emit('error', '名前を入力してください');
     const room = rooms[roomId];
     if (!room) return socket.emit('error', 'ルームが見つかりません');
-    if (room.phase !== 'lobby') return socket.emit('error', 'ゲームはすでに開始されています');
-    if (room.players.length >= 8) return socket.emit('error', 'ルームが満員です');
+    if (room.phase === 'reveal') return socket.emit('error', 'めくり中は参加できません');
+    if (!isSpectator && activePlayers(room).length >= 8) return socket.emit('error', 'ルームが満員です');
 
-    room.players.push({ id: socket.id, name, card: null });
+    const newPlayer = { id: socket.id, name, card: null, isSpectator: !!isSpectator };
+    room.players.push(newPlayer);
     socket.join(roomId);
     socket.roomId = roomId;
-    socket.emit('roomJoined', { roomId, isHost: false });
+    socket.emit('roomJoined', { roomId, isHost: false, isSpectator: !!isSpectator });
+
+    if (!isSpectator && room.phase === 'game') {
+      // ゲーム中途参加：カードを配って末尾に追加
+      const used = new Set(activePlayers(room).filter(p => p.card).map(p => p.card));
+      let card;
+      do { card = Math.floor(Math.random() * 100) + 1; } while (used.has(card));
+      newPlayer.card = card;
+      room.cardOrder.push(socket.id);
+      socket.emit('yourCard', { card });
+      socket.emit('gameStarted', {
+        room: sanitizeRoom(room),
+        topic: room.topic,
+        cardOrder: room.cardOrder,
+      });
+      io.to(roomId).emit('orderUpdated', room.cardOrder);
+    } else if (isSpectator && room.phase === 'game') {
+      socket.emit('gameStarted', {
+        room: sanitizeRoom(room),
+        topic: room.topic,
+        cardOrder: room.cardOrder,
+      });
+    } else if (isSpectator && room.phase === 'reveal') {
+      socket.emit('revealStarted', {
+        orderedCards: room.orderedCards.map(p => ({ id: p.id, name: p.name })),
+      });
+      for (let i = 0; i <= room.revealIndex; i++) {
+        const card = room.orderedCards[i];
+        const isLast = i === room.orderedCards.length - 1;
+        socket.emit('cardRevealed', { index: i, card, isLast });
+      }
+    }
+
     io.to(roomId).emit('roomUpdated', sanitizeRoom(room));
   });
 
@@ -82,19 +120,20 @@ io.on('connection', (socket) => {
   socket.on('startGame', () => {
     const room = rooms[socket.roomId];
     if (!room || room.hostId !== socket.id) return;
-    if (room.players.length < 2) return socket.emit('error', '2人以上必要です');
+    const active = activePlayers(room);
+    if (active.length < 2) return socket.emit('error', '2人以上必要です');
     if (!room.topic) return socket.emit('error', 'お題を設定してください');
 
-    assignCards(room.players);
+    assignCards(active);
     room.phase = 'game';
-    room.cardOrder = room.players.map(p => p.id);
+    room.cardOrder = active.map(p => p.id);
 
     io.to(socket.roomId).emit('gameStarted', {
       room: sanitizeRoom(room),
       topic: room.topic,
       cardOrder: room.cardOrder,
     });
-    room.players.forEach(p => {
+    active.forEach(p => {
       io.to(p.id).emit('yourCard', { card: p.card });
     });
   });
@@ -103,8 +142,7 @@ io.on('connection', (socket) => {
     const room = rooms[socket.roomId];
     if (!room || room.phase !== 'game') return;
     if (!Array.isArray(cardOrder)) return;
-    // validate all ids belong to the room
-    const validIds = new Set(room.players.map(p => p.id));
+    const validIds = new Set(activePlayers(room).map(p => p.id));
     if (!cardOrder.every(id => validIds.has(id))) return;
     room.cardOrder = cardOrder;
     socket.to(socket.roomId).emit('orderUpdated', cardOrder);
@@ -154,8 +192,9 @@ io.on('connection', (socket) => {
       return;
     }
     if (room.hostId === socket.id) {
-      room.hostId = room.players[0].id;
-      io.to(room.players[0].id).emit('youAreHost');
+      const nextHost = activePlayers(room)[0] || room.players[0];
+      room.hostId = nextHost.id;
+      io.to(nextHost.id).emit('youAreHost');
     }
     io.to(roomId).emit('roomUpdated', sanitizeRoom(room));
     if (room.phase === 'game') {
