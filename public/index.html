@@ -292,22 +292,29 @@
 
   .separator { height: 1px; background: #0f3460; margin: 1rem 0; }
 
+  .topic-category { margin-bottom: 0.8rem; }
+  .topic-category-label {
+    font-size: 0.75rem;
+    color: #888;
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+  }
   .topics-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 0.8rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
   }
   .topic-btn {
-    padding: 0.5rem;
+    padding: 0.4rem 0.7rem;
     font-size: 0.8rem;
     background: #0f3460;
     color: #ccc;
-    border-radius: 8px;
+    border-radius: 20px;
     border: 1px solid #1a3460;
     cursor: pointer;
     transition: background 0.2s;
-    width: 100%;
+    width: auto;
   }
   .topic-btn:hover { background: #1a4480; color: #fff; }
 
@@ -370,7 +377,8 @@
 
   <div id="host-lobby-controls" class="card" style="display:none">
     <h2>お題を設定</h2>
-    <div class="topics-grid" id="preset-topics"></div>
+    <button class="btn-primary" style="margin-bottom:0.8rem" onclick="randomTopic()">🎲 ランダムで選ぶ</button>
+    <div id="preset-topics"></div>
     <input type="text" id="topic-input" placeholder="または自由入力..." maxlength="40">
     <button class="btn-secondary btn-sm mt" onclick="setTopic()">お題を決定</button>
     <div class="separator"></div>
@@ -439,17 +447,73 @@
 <script>
 const socket = io();
 
-const PRESET_TOPICS = [
-  '人生でやらかした度', '風呂に入りたくない度',
-  '母親に見せられない検索履歴度', '飲み会でやらかした度',
-  '宇宙人に会った時のパニック度', '深夜のテンション',
-  '告白された回数', '絶対に負けられない戦い',
-  '人に言えない趣味度', 'LINEを既読無視する度',
-  '給食で残した量', '親に怒られた回数',
-  '睡眠時間', '忘れ物の多さ',
-  'カラオケの音痴度', '運動神経の悪さ',
-  '人見知り度', '心の中のオタク度',
-];
+const TOPIC_CATEGORIES = {
+  '💀 やらかし': [
+    '人生最大のやらかし度',
+    '飲み会でやらかした伝説度',
+    '親に絶対に言えない話の重さ',
+    '修学旅行の夜の武勇伝度',
+    '寝坊でヤバかった経験度',
+    '告白して玉砕した時のダメージ',
+    '送信先を間違えたLINEのやばさ',
+    '人生で一番恥ずかしかった瞬間',
+  ],
+  '🌙 深夜': [
+    '深夜テンションのぶっとび度',
+    '夜中に突然始まる謎の行動力',
+    '夜中に食べてはいけないもの食べた罪悪感',
+    '朝4時まで起きてた時の廃人度',
+    '徹夜明けのハイテンション度',
+  ],
+  '😤 日常': [
+    '風呂に入りたくない度',
+    'LINEを既読無視したくなる度',
+    '布団から出られない度',
+    '人見知り発動レベル',
+    '遅刻グセのひどさ',
+    '忘れ物の多さ',
+    '部屋の汚さ',
+    '説明書を読まない度',
+  ],
+  '🍜 食': [
+    '絶対に譲れない食へのこだわり度',
+    '給食で残してた量',
+    '深夜に食べるラーメンのうまさ',
+    '辛いもの耐性',
+    '激マズ料理を食べた時の笑顔で乗り切った度',
+  ],
+  '💘 恋愛': [
+    '告白された回数（自称含む）',
+    '元カノ・元カレを引きずった期間',
+    'ひと目惚れした回数',
+    '修羅場をくぐった経験値',
+    '好きな人の前でやらかした度',
+  ],
+  '🏫 学校': [
+    '授業中に寝てた量',
+    '先生に怒られた回数',
+    'テスト前日の追い込み力',
+    '体育の授業でのトラウマ度',
+    '卒業式で泣いた量',
+  ],
+  '🎮 オタク': [
+    '隠れオタク度',
+    'ゲームに溶かした時間',
+    'アニメを一気見した最長時間',
+    '推しへの狂気度',
+    'ひとりカラオケ経験値',
+  ],
+  '🌍 人生': [
+    '人生の残機数',
+    '運の強さ',
+    '生きてきた中での運動神経の悪さ',
+    '人生で感じた孤独感',
+    '死ぬまでにやりたいこと残量',
+    '自分のコミュ力への過信度',
+  ],
+};
+
+const PRESET_TOPICS = Object.values(TOPIC_CATEGORIES).flat();
 
 let state = {
   roomId: null,
@@ -464,17 +528,36 @@ let state = {
 
 // ---- Init ----
 function init() {
-  const grid = document.getElementById('preset-topics');
-  PRESET_TOPICS.forEach(t => {
-    const btn = document.createElement('button');
-    btn.className = 'topic-btn';
-    btn.textContent = t;
-    btn.onclick = () => {
-      document.getElementById('topic-input').value = t;
-      setTopic();
-    };
-    grid.appendChild(btn);
+  const container = document.getElementById('preset-topics');
+  Object.entries(TOPIC_CATEGORIES).forEach(([cat, topics]) => {
+    const section = document.createElement('div');
+    section.className = 'topic-category';
+    const label = document.createElement('div');
+    label.className = 'topic-category-label';
+    label.textContent = cat;
+    section.appendChild(label);
+    const grid = document.createElement('div');
+    grid.className = 'topics-grid';
+    topics.forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'topic-btn';
+      btn.textContent = t;
+      btn.onclick = () => {
+        document.getElementById('topic-input').value = t;
+        setTopic();
+      };
+      grid.appendChild(btn);
+    });
+    section.appendChild(grid);
+    container.appendChild(section);
   });
+}
+
+function randomTopic() {
+  const all = Object.values(TOPIC_CATEGORIES).flat();
+  const t = all[Math.floor(Math.random() * all.length)];
+  document.getElementById('topic-input').value = t;
+  setTopic();
 }
 
 // ---- Screen management ----
