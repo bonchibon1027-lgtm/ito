@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ito オンライン</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  h1 {
+    font-size: 3rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    margin: 2rem 0 0.5rem;
+    background: linear-gradient(135deg, #e94560, #f5a623);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle { color: #888; margin-bottom: 2rem; font-size: 0.9rem; }
+
+  .screen { display: none; width: 100%; max-width: 600px; padding: 0 1rem 2rem; }
+  .screen.active { display: block; }
+
+  .card {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #0f3460;
+  }
+
+  .card h2 { font-size: 1.1rem; color: #aaa; margin-bottom: 1rem; }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border-radius: 10px;
+    border: 2px solid #0f3460;
+    background: #0f3460;
+    color: #eee;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 0.8rem;
+  }
+  input[type="text"]:focus { border-color: #e94560; }
+  input[type="text"]::placeholder { color: #555; }
+
+  button {
+    width: 100%;
+    padding: 0.8rem;
+    border-radius: 10px;
+    border: none;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  button:hover { opacity: 0.9; }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-primary { background: linear-gradient(135deg, #e94560, #c62a47); color: #fff; }
+  .btn-secondary { background: #0f3460; color: #eee; }
+  .btn-success { background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff; }
+  .btn-danger { background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; }
+  .btn-sm { padding: 0.5rem 0.8rem; font-size: 0.85rem; width: auto; }
+
+  .room-code {
+    font-size: 2.5rem;
+    font-weight: 900;
+    letter-spacing: 0.3em;
+    color: #f5a623;
+    text-align: center;
+    padding: 0.5rem;
+    background: #0f3460;
+    border-radius: 12px;
+    margin: 0.5rem 0 1rem;
+    cursor: pointer;
+    user-select: all;
+  }
+  .room-code:hover::after { content: ' コピー'; font-size: 0.9rem; letter-spacing: 0; color: #aaa; }
+
+  .player-list { list-style: none; }
+  .player-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    margin-bottom: 0.4rem;
+    background: #0f3460;
+    font-size: 0.95rem;
+  }
+  .player-list li .crown { color: #f5a623; }
+  .player-list li .you { color: #e94560; font-size: 0.75rem; padding: 2px 6px; background: #e9456022; border-radius: 4px; }
+
+  .topic-display {
+    text-align: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #0f3460, #16213e);
+    border-radius: 16px;
+    margin-bottom: 1rem;
+    border: 2px solid #e94560;
+  }
+  .topic-display .label { font-size: 0.8rem; color: #888; margin-bottom: 0.3rem; }
+  .topic-display .topic { font-size: 1.8rem; font-weight: 900; color: #f5a623; }
+
+  .my-card {
+    text-align: center;
+    padding: 2rem;
+    background: linear-gradient(135deg, #e94560, #c62a47);
+    border-radius: 16px;
+    margin-bottom: 1rem;
+  }
+  .my-card .label { font-size: 0.85rem; color: rgba(255,255,255,0.7); margin-bottom: 0.5rem; }
+  .my-card .number { font-size: 5rem; font-weight: 900; color: #fff; line-height: 1; }
+  .my-card .hint { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-top: 0.5rem; }
+
+  /* Ordering area */
+  .order-area {
+    min-height: 80px;
+    padding: 0.8rem;
+    background: #0a1628;
+    border-radius: 12px;
+    border: 2px dashed #0f3460;
+    margin-bottom: 1rem;
+  }
+  .order-area .order-label {
+    font-size: 0.75rem;
+    color: #555;
+    margin-bottom: 0.6rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  .order-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 48px;
+  }
+
+  .player-token {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 8px;
+    background: #16213e;
+    border: 2px solid #0f3460;
+    cursor: grab;
+    user-select: none;
+    font-size: 0.9rem;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .player-token:active { cursor: grabbing; }
+  .player-token.dragging { opacity: 0.4; }
+  .player-token.drag-over { border-color: #e94560; background: #1a1a3e; }
+  .player-token .token-name { font-weight: 600; }
+  .player-token .token-you { font-size: 0.7rem; color: #e94560; }
+
+  /* Reveal cards */
+  .reveal-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    justify-content: center;
+    padding: 0.5rem 0;
+  }
+
+  .flip-card {
+    width: 90px;
+    height: 130px;
+    perspective: 600px;
+    cursor: default;
+  }
+  .flip-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .flip-card.flipped .flip-inner { transform: rotateY(180deg); }
+
+  .flip-front, .flip-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+    backface-visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+  }
+  .flip-front {
+    background: linear-gradient(135deg, #16213e, #0f3460);
+    border: 2px solid #0f3460;
+  }
+  .flip-front .front-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: center;
+    word-break: break-all;
+    color: #ccc;
+  }
+  .flip-front .front-you {
+    font-size: 0.65rem;
+    color: #e94560;
+    margin-top: 0.3rem;
+  }
+  .flip-front .front-icon {
+    font-size: 1.8rem;
+    margin-bottom: 0.4rem;
+    opacity: 0.3;
+  }
+  .flip-back {
+    background: linear-gradient(135deg, #e94560, #c62a47);
+    border: 2px solid #e94560;
+    transform: rotateY(180deg);
+  }
+  .flip-back.correct-card { background: linear-gradient(135deg, #2ecc71, #27ae60); border-color: #2ecc71; }
+  .flip-back.wrong-card   { background: linear-gradient(135deg, #e74c3c, #c0392b); border-color: #e74c3c; }
+  .flip-back .back-num {
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+  }
+  .flip-back .back-name {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.8);
+    margin-top: 0.4rem;
+    text-align: center;
+    word-break: break-all;
+  }
+  .flip-back .back-rank {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.5);
+    margin-top: 0.2rem;
+  }
+
+  .flip-card.next-up .flip-front {
+    border-color: #f5a623;
+    box-shadow: 0 0 12px #f5a62366;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 8px #f5a62344; }
+    50%       { box-shadow: 0 0 20px #f5a623aa; }
+  }
+
+  .success-banner {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    display: none;
+  }
+  .success-banner.win { background: #1a3a2a; color: #2ecc71; border: 2px solid #2ecc71; display: block; }
+  .success-banner.lose { background: #3a1a1a; color: #e74c3c; border: 2px solid #e74c3c; display: block; }
+
+  .error-msg {
+    background: #3a1a1a;
+    color: #e74c3c;
+    padding: 0.8rem 1rem;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    display: none;
+  }
+
+  .separator { height: 1px; background: #0f3460; margin: 1rem 0; }
+
+  .topics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+  }
+  .topic-btn {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+    background: #0f3460;
+    color: #ccc;
+    border-radius: 8px;
+    border: 1px solid #1a3460;
+    cursor: pointer;
+    transition: background 0.2s;
+    width: 100%;
+  }
+  .topic-btn:hover { background: #1a4480; color: #fff; }
+
+  .mt { margin-top: 0.8rem; }
+  .text-center { text-align: center; }
+  .text-sm { font-size: 0.85rem; color: #888; }
+
+  .waiting-msg {
+    text-align: center;
+    color: #666;
+    font-size: 0.9rem;
+    padding: 1rem;
+  }
+  .dot-anim::after {
+    content: '...';
+    animation: dots 1.5s infinite;
+  }
+  @keyframes dots {
+    0% { content: '.'; } 33% { content: '..'; } 66% { content: '...'; }
+  }
+</style>
+</head>
+<body>
+
+<h1>糸</h1>
+<p class="subtitle">Ito オンライン</p>
+
+<!-- HOME SCREEN -->
+<div id="screen-home" class="screen active">
+  <div id="home-error" class="error-msg"></div>
+
+  <div class="card">
+    <h2>ルームを作る</h2>
+    <input type="text" id="create-name" placeholder="あなたの名前" maxlength="16">
+    <button class="btn-primary" onclick="createRoom()">ルームを作成</button>
+  </div>
+
+  <div class="card">
+    <h2>ルームに参加</h2>
+    <input type="text" id="join-name" placeholder="あなたの名前" maxlength="16">
+    <input type="text" id="join-code" placeholder="ルームコード（例: AB12）" maxlength="4" style="text-transform:uppercase">
+    <button class="btn-secondary" onclick="joinRoom()">参加する</button>
+  </div>
+</div>
+
+<!-- LOBBY SCREEN -->
+<div id="screen-lobby" class="screen">
+  <div id="lobby-error" class="error-msg"></div>
+
+  <div class="card">
+    <h2>ルームコード</h2>
+    <div class="room-code" id="lobby-room-code" onclick="copyCode()">----</div>
+    <p class="text-sm text-center">クリックでコピー</p>
+  </div>
+
+  <div class="card">
+    <h2>プレイヤー</h2>
+    <ul class="player-list" id="lobby-players"></ul>
+  </div>
+
+  <div id="host-lobby-controls" class="card" style="display:none">
+    <h2>お題を設定</h2>
+    <div class="topics-grid" id="preset-topics"></div>
+    <input type="text" id="topic-input" placeholder="または自由入力..." maxlength="40">
+    <button class="btn-secondary btn-sm mt" onclick="setTopic()">お題を決定</button>
+    <div class="separator"></div>
+    <div id="current-topic-display" style="text-align:center; color:#f5a623; margin-bottom:0.8rem; min-height:1.5em; font-weight:600"></div>
+    <button class="btn-primary" id="start-btn" onclick="startGame()" disabled>ゲーム開始</button>
+  </div>
+
+  <div id="guest-lobby-waiting" class="waiting-msg dot-anim" style="display:none">
+    ホストがゲームを開始するのを待っています
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="screen-game" class="screen">
+  <div class="topic-display">
+    <div class="label">お題</div>
+    <div class="topic" id="game-topic"></div>
+  </div>
+
+  <div class="my-card">
+    <div class="label">あなたのカード</div>
+    <div class="number" id="my-card-number">?</div>
+    <div class="hint">このカードの数字は自分だけが知っています</div>
+  </div>
+
+  <div class="card">
+    <h2>カードの並び替え（みんなで話し合って！）</h2>
+    <div class="order-area">
+      <div class="order-label">
+        <span>← 小さい（弱い・少ない）</span>
+        <span>大きい（強い・多い） →</span>
+      </div>
+      <div class="order-list" id="order-list"></div>
+    </div>
+    <p class="text-sm">カードをドラッグして並び替えできます</p>
+  </div>
+
+  <div id="host-game-controls" style="display:none">
+    <button class="btn-danger" onclick="startReveal()">カードをめくる！</button>
+  </div>
+  <div id="guest-game-waiting" class="waiting-msg" style="display:none">
+    ホストがカードをめくるのを待っています
+  </div>
+</div>
+
+<!-- REVEAL SCREEN -->
+<div id="screen-reveal" class="screen">
+  <div id="reveal-banner" class="success-banner"></div>
+  <div class="topic-display">
+    <div class="label">お題</div>
+    <div class="topic" id="reveal-topic"></div>
+  </div>
+  <div class="card">
+    <h2>カード</h2>
+    <div class="reveal-row" id="reveal-row"></div>
+  </div>
+  <div id="host-reveal-controls" style="display:none">
+    <button class="btn-danger" id="reveal-next-btn" onclick="revealNext()">めくる</button>
+    <button class="btn-secondary mt" id="back-lobby-btn" onclick="backToLobby()" style="display:none">ロビーに戻る</button>
+  </div>
+  <div id="guest-reveal-waiting" class="waiting-msg dot-anim" style="display:none">
+    めくるのを待っています
+  </div>
+</div>
+
+<script>
+const socket = io();
+
+const PRESET_TOPICS = [
+  '好きな食べ物', '速いもの', '甘いもの', '怖いもの',
+  '強いもの', '便利な道具', '楽しいこと', '高いもの',
+  '大きいもの', '難しいこと', '癒されるもの', '危ないもの',
+];
+
+let state = {
+  roomId: null,
+  isHost: false,
+  myId: socket.id,
+  myCard: null,
+  players: [],
+  topic: '',
+  cardOrder: [],
+  phase: 'home',
+};
+
+// ---- Init ----
+function init() {
+  const grid = document.getElementById('preset-topics');
+  PRESET_TOPICS.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'topic-btn';
+    btn.textContent = t;
+    btn.onclick = () => {
+      document.getElementById('topic-input').value = t;
+      setTopic();
+    };
+    grid.appendChild(btn);
+  });
+}
+
+// ---- Screen management ----
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  state.phase = name;
+}
+
+function showError(screenId, msg) {
+  const el = document.getElementById(screenId + '-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+// ---- Home actions ----
+function createRoom() {
+  const name = document.getElementById('create-name').value.trim();
+  if (!name) return showError('home', '名前を入力してください');
+  socket.emit('createRoom', { playerName: name });
+}
+
+function joinRoom() {
+  const name = document.getElementById('join-name').value.trim();
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  if (!name) return showError('home', '名前を入力してください');
+  if (!code) return showError('home', 'ルームコードを入力してください');
+  socket.emit('joinRoom', { playerName: name, roomId: code });
+}
+
+// ---- Lobby actions ----
+function copyCode() {
+  navigator.clipboard.writeText(state.roomId).catch(() => {});
+}
+
+function setTopic() {
+  const t = document.getElementById('topic-input').value.trim();
+  if (!t) return;
+  socket.emit('setTopic', { topic: t });
+}
+
+function startGame() {
+  socket.emit('startGame');
+}
+
+function renderLobby(room) {
+  document.getElementById('lobby-room-code').textContent = room.id;
+  state.roomId = room.id;
+
+  const ul = document.getElementById('lobby-players');
+  ul.innerHTML = '';
+  room.players.forEach(p => {
+    const li = document.createElement('li');
+    const isHost = p.id === room.hostId;
+    const isMe = p.id === socket.id;
+    li.innerHTML = `
+      ${isHost ? '<span class="crown">👑</span>' : '<span style="width:1.2em;display:inline-block"></span>'}
+      <span>${escapeHtml(p.name)}</span>
+      ${isMe ? '<span class="you">あなた</span>' : ''}
+    `;
+    ul.appendChild(li);
+  });
+
+  if (state.isHost) {
+    document.getElementById('host-lobby-controls').style.display = 'block';
+    document.getElementById('guest-lobby-waiting').style.display = 'none';
+    const topicDisplay = document.getElementById('current-topic-display');
+    topicDisplay.textContent = room.topic ? `「${room.topic}」` : '';
+    const startBtn = document.getElementById('start-btn');
+    startBtn.disabled = !room.topic || room.players.length < 2;
+  } else {
+    document.getElementById('host-lobby-controls').style.display = 'none';
+    document.getElementById('guest-lobby-waiting').style.display = 'block';
+  }
+}
+
+// ---- Game actions ----
+function renderGame(topic, cardOrder, players) {
+  state.topic = topic;
+  state.cardOrder = cardOrder;
+  state.players = players;
+
+  document.getElementById('game-topic').textContent = topic;
+  renderOrderList();
+
+  if (state.isHost) {
+    document.getElementById('host-game-controls').style.display = 'block';
+    document.getElementById('guest-game-waiting').style.display = 'none';
+  } else {
+    document.getElementById('host-game-controls').style.display = 'none';
+    document.getElementById('guest-game-waiting').style.display = 'block';
+  }
+}
+
+function renderOrderList() {
+  const list = document.getElementById('order-list');
+  list.innerHTML = '';
+  state.cardOrder.forEach((playerId, idx) => {
+    const player = state.players.find(p => p.id === playerId);
+    if (!player) return;
+    const token = document.createElement('div');
+    token.className = 'player-token';
+    token.draggable = true;
+    token.dataset.id = playerId;
+    const isMe = playerId === socket.id;
+    token.innerHTML = `
+      <span class="token-name">${escapeHtml(player.name)}</span>
+      ${isMe ? '<span class="token-you">あなた</span>' : ''}
+    `;
+    setupDrag(token);
+    list.appendChild(token);
+  });
+}
+
+// ---- Drag and drop ----
+let dragSrc = null;
+
+function setupDrag(token) {
+  token.addEventListener('dragstart', e => {
+    dragSrc = token;
+    token.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  token.addEventListener('dragend', () => {
+    token.classList.remove('dragging');
+    document.querySelectorAll('.player-token').forEach(t => t.classList.remove('drag-over'));
+  });
+  token.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragSrc && dragSrc !== token) {
+      document.querySelectorAll('.player-token').forEach(t => t.classList.remove('drag-over'));
+      token.classList.add('drag-over');
+    }
+  });
+  token.addEventListener('drop', e => {
+    e.preventDefault();
+    if (!dragSrc || dragSrc === token) return;
+    const list = document.getElementById('order-list');
+    const tokens = [...list.querySelectorAll('.player-token')];
+    const srcIdx = tokens.indexOf(dragSrc);
+    const dstIdx = tokens.indexOf(token);
+    if (srcIdx < dstIdx) {
+      token.after(dragSrc);
+    } else {
+      token.before(dragSrc);
+    }
+    token.classList.remove('drag-over');
+    // update state and broadcast
+    const newOrder = [...list.querySelectorAll('.player-token')].map(t => t.dataset.id);
+    state.cardOrder = newOrder;
+    socket.emit('updateOrder', { cardOrder: newOrder });
+  });
+}
+
+function startReveal() {
+  socket.emit('startReveal');
+}
+
+function revealNext() {
+  socket.emit('revealNext');
+}
+
+// ---- Reveal ----
+let revealCards = []; // { id, name, card? }
+
+function initRevealScreen(orderedCards) {
+  revealCards = orderedCards; // initially no .card
+  document.getElementById('reveal-topic').textContent = state.topic;
+  document.getElementById('reveal-banner').className = 'success-banner';
+
+  const row = document.getElementById('reveal-row');
+  row.innerHTML = '';
+  orderedCards.forEach((p, idx) => {
+    const isMe = p.id === socket.id;
+    const fc = document.createElement('div');
+    fc.className = 'flip-card' + (idx === 0 ? ' next-up' : '');
+    fc.id = 'flip-' + idx;
+    fc.innerHTML = `
+      <div class="flip-inner">
+        <div class="flip-front">
+          <div class="front-icon">?</div>
+          <div class="front-name">${escapeHtml(p.name)}</div>
+          ${isMe ? '<div class="front-you">あなた</div>' : ''}
+        </div>
+        <div class="flip-back" id="flip-back-${idx}">
+          <div class="back-num" id="back-num-${idx}"></div>
+          <div class="back-name">${escapeHtml(p.name)}</div>
+          <div class="back-rank">${idx + 1}番目</div>
+        </div>
+      </div>`;
+    row.appendChild(fc);
+  });
+
+  if (state.isHost) {
+    document.getElementById('host-reveal-controls').style.display = 'block';
+    document.getElementById('reveal-next-btn').style.display = 'block';
+    document.getElementById('back-lobby-btn').style.display = 'none';
+    document.getElementById('guest-reveal-waiting').style.display = 'none';
+  } else {
+    document.getElementById('host-reveal-controls').style.display = 'none';
+    document.getElementById('guest-reveal-waiting').style.display = 'block';
+  }
+}
+
+function flipCard(index, cardData, isLast) {
+  const fc = document.getElementById('flip-' + index);
+  if (!fc) return;
+  fc.classList.remove('next-up');
+
+  // determine correctness
+  revealCards[index].card = cardData.card;
+  let correct = true;
+  if (index > 0 && revealCards[index - 1].card !== undefined) {
+    correct = cardData.card >= revealCards[index - 1].card;
+  }
+
+  const back = document.getElementById('flip-back-' + index);
+  back.classList.add(correct ? 'correct-card' : 'wrong-card');
+  document.getElementById('back-num-' + index).textContent = cardData.card;
+
+  // flip
+  setTimeout(() => fc.classList.add('flipped'), 50);
+
+  // highlight next
+  if (!isLast) {
+    const next = document.getElementById('flip-' + (index + 1));
+    if (next) setTimeout(() => next.classList.add('next-up'), 400);
+  } else {
+    // all revealed — show banner
+    setTimeout(() => {
+      let allCorrect = true;
+      for (let i = 1; i < revealCards.length; i++) {
+        if (revealCards[i].card < revealCards[i-1].card) { allCorrect = false; break; }
+      }
+      const banner = document.getElementById('reveal-banner');
+      banner.className = 'success-banner ' + (allCorrect ? 'win' : 'lose');
+      banner.textContent = allCorrect ? '成功！全員の順番が正しかった！' : '残念！順番が違いました...';
+    }, 600);
+
+    if (state.isHost) {
+      setTimeout(() => {
+        document.getElementById('reveal-next-btn').style.display = 'none';
+        document.getElementById('back-lobby-btn').style.display = 'block';
+      }, 600);
+    } else {
+      document.getElementById('guest-reveal-waiting').textContent = 'ホストが次のラウンドを始めるのを待っています';
+      document.querySelector('#guest-reveal-waiting').classList.remove('dot-anim');
+    }
+  }
+}
+
+function backToLobby() {
+  socket.emit('backToLobby');
+}
+
+// ---- Socket events ----
+socket.on('connect', () => { state.myId = socket.id; });
+
+socket.on('roomJoined', ({ roomId, isHost }) => {
+  state.roomId = roomId;
+  state.isHost = isHost;
+  showScreen('lobby');
+});
+
+socket.on('roomUpdated', room => {
+  state.players = room.players;
+  if (state.phase === 'lobby' || state.phase === 'reveal') {
+    if (room.phase === 'lobby') {
+      showScreen('lobby');
+      renderLobby(room);
+    }
+  }
+  if (state.phase === 'lobby') renderLobby(room);
+});
+
+socket.on('gameStarted', ({ room, topic, cardOrder }) => {
+  state.topic = topic;
+  state.cardOrder = cardOrder;
+  state.players = room.players;
+  state.myCard = null;
+  document.getElementById('my-card-number').textContent = '?';
+  showScreen('game');
+  renderGame(topic, cardOrder, room.players);
+});
+
+socket.on('yourCard', ({ card }) => {
+  state.myCard = card;
+  document.getElementById('my-card-number').textContent = card;
+});
+
+socket.on('orderUpdated', cardOrder => {
+  state.cardOrder = cardOrder;
+  renderOrderList();
+});
+
+socket.on('revealStarted', ({ orderedCards }) => {
+  showScreen('reveal');
+  initRevealScreen(orderedCards);
+});
+
+socket.on('cardRevealed', ({ index, card, isLast }) => {
+  flipCard(index, card, isLast);
+});
+
+socket.on('youAreHost', () => {
+  state.isHost = true;
+  if (state.phase === 'lobby') {
+    document.getElementById('host-lobby-controls').style.display = 'block';
+    document.getElementById('guest-lobby-waiting').style.display = 'none';
+  } else if (state.phase === 'game') {
+    document.getElementById('host-game-controls').style.display = 'block';
+    document.getElementById('guest-game-waiting').style.display = 'none';
+  } else if (state.phase === 'reveal') {
+    document.getElementById('host-reveal-controls').style.display = 'block';
+    document.getElementById('guest-reveal-waiting').style.display = 'none';
+  }
+});
+
+socket.on('error', msg => {
+  const screenMap = { home: 'home', lobby: 'lobby' };
+  showError(screenMap[state.phase] || 'home', msg);
+});
+
+// ---- Utils ----
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Enter key support
+document.getElementById('create-name').addEventListener('keydown', e => { if (e.key === 'Enter') createRoom(); });
+document.getElementById('join-code').addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(); });
+document.getElementById('join-code').addEventListener('input', e => {
+  e.target.value = e.target.value.toUpperCase();
+});
+
+init();
+</script>
+</body>
+</html>
