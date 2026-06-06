@@ -96,6 +96,8 @@ io.on('connection', (socket) => {
         topic: room.topic,
         cardOrder: room.cardOrder,
       });
+      const allCards = activePlayers(room).map(p => ({ id: p.id, name: p.name, card: p.card }));
+      socket.emit('spectatorCards', allCards);
     } else if (isSpectator && room.phase === 'reveal') {
       socket.emit('revealStarted', {
         orderedCards: room.orderedCards.map(p => ({ id: p.id, name: p.name })),
@@ -135,6 +137,11 @@ io.on('connection', (socket) => {
     });
     active.forEach(p => {
       io.to(p.id).emit('yourCard', { card: p.card });
+    });
+    // 観戦者には全カードを公開
+    const allCards = active.map(p => ({ id: p.id, name: p.name, card: p.card }));
+    room.players.filter(p => p.isSpectator).forEach(p => {
+      io.to(p.id).emit('spectatorCards', allCards);
     });
   });
 

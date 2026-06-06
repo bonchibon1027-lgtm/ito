@@ -313,6 +313,49 @@
   .text-center { text-align: center; }
   .text-sm { font-size: 0.85rem; color: #888; }
 
+  /* Rules modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 1.5rem;
+    max-width: 480px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    border: 1px solid #0f3460;
+  }
+  .modal h3 { font-size: 1.2rem; margin-bottom: 1rem; color: #f5a623; }
+  .modal p { font-size: 0.9rem; color: #ccc; line-height: 1.7; margin-bottom: 0.8rem; }
+  .modal ol { padding-left: 1.2rem; color: #ccc; font-size: 0.9rem; line-height: 2; }
+
+  /* Spectator cards */
+  .spectator-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  .spec-card {
+    background: #0f3460;
+    border-radius: 10px;
+    padding: 0.5rem 0.8rem;
+    text-align: center;
+    min-width: 70px;
+  }
+  .spec-card .spec-num { font-size: 1.6rem; font-weight: 900; color: #f5a623; }
+  .spec-card .spec-name { font-size: 0.7rem; color: #aaa; margin-top: 0.2rem; }
+
   .waiting-msg {
     text-align: center;
     color: #666;
@@ -329,6 +372,25 @@
 </style>
 </head>
 <body>
+
+<!-- Rules Modal -->
+<div class="modal-overlay" id="rules-modal" onclick="if(event.target===this)closeRules()">
+  <div class="modal">
+    <h3>🎴 Itoのルール</h3>
+    <p>1〜100の数字カードを使って、みんなで協力してカードを小さい順に並べるゲームです。</p>
+    <ol>
+      <li>ホストがお題を決めてゲームスタート</li>
+      <li>各プレイヤーに1〜100のランダムな数字が配られる</li>
+      <li>自分の数字は自分だけが見える</li>
+      <li>お題に沿って自分の数字をヒントにしながら話し合う<br><span style="font-size:0.8rem;color:#888">例）お題「辛いもの」で50の人は「カレーくらい」など</span></li>
+      <li>みんなで相談して、小さい順に並べ替える</li>
+      <li>ホストが左から1枚ずつめくっていく</li>
+      <li>全員のカードが正しく小さい順に並んでいれば成功！</li>
+    </ol>
+    <br>
+    <button class="btn-secondary" onclick="closeRules()">閉じる</button>
+  </div>
+</div>
 
 <h1>糸</h1>
 <p class="subtitle">Ito オンライン</p>
@@ -368,6 +430,7 @@
   <div class="card">
     <h2>プレイヤー</h2>
     <ul class="player-list" id="lobby-players"></ul>
+    <button class="btn-secondary btn-sm mt" onclick="openRules()" style="color:#888">📖 ルールを見る</button>
   </div>
 
   <div id="host-lobby-controls" class="card" style="display:none">
@@ -410,6 +473,11 @@
       <div class="order-list" id="order-list"></div>
     </div>
     <p class="text-sm">カードをドラッグして並び替えできます</p>
+  </div>
+
+  <div id="spectator-cards-area" class="card" style="display:none">
+    <h2>👁 全員のカード（観戦者のみ表示）</h2>
+    <div class="spectator-cards" id="spectator-cards-list"></div>
   </div>
 
   <div id="host-game-controls" style="display:none">
@@ -914,6 +982,24 @@ socket.on('youAreHost', () => {
 socket.on('error', msg => {
   const screenMap = { home: 'home', lobby: 'lobby' };
   showError(screenMap[state.phase] || 'home', msg);
+});
+
+// ---- Rules modal ----
+function openRules() { document.getElementById('rules-modal').classList.add('open'); }
+function closeRules() { document.getElementById('rules-modal').classList.remove('open'); }
+
+// ---- Spectator cards ----
+socket.on('spectatorCards', (allCards) => {
+  const area = document.getElementById('spectator-cards-area');
+  const list = document.getElementById('spectator-cards-list');
+  area.style.display = 'block';
+  list.innerHTML = '';
+  allCards.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'spec-card';
+    el.innerHTML = `<div class="spec-num">${p.card}</div><div class="spec-name">${escapeHtml(p.name)}</div>`;
+    list.appendChild(el);
+  });
 });
 
 // ---- Utils ----
