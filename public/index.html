@@ -939,32 +939,17 @@ socket.on('roomJoined', ({ roomId, isHost, isSpectator, restored }) => {
 
 socket.on('roomUpdated', room => {
   state.players = room.players;
+
   if (room.phase === 'lobby') {
-    showScreen('lobby');
+    // ロビーに戻った or もともとロビー
+    if (state.phase !== 'lobby') showScreen('lobby');
     renderLobby(room);
   } else if (state.phase === 'lobby') {
+    // 自分がロビーにいるがルームはゲーム中（途中参加直後など）
     renderLobby(room);
   } else if (state.phase === 'game') {
-    // ゲーム中に新規参加者が来たら並び替えリストを更新
+    // ゲーム中：並び替えリストを常に再描画
     renderOrderList();
-    // 観戦者なら全員のカードを更新表示
-    if (state.isSpectator) {
-      const spectatorArea = document.getElementById('spectator-cards-area');
-      if (spectatorArea.style.display !== 'none') {
-        // サーバーから再送してもらう必要があるが、プレイヤーリストを更新
-        const list = document.getElementById('spectator-cards-list');
-        list.innerHTML = '';
-        room.players.filter(p => !p.isSpectator).forEach(p => {
-          const existing = document.getElementById('spec-' + p.id);
-          const el = document.createElement('div');
-          el.className = 'spec-card';
-          el.id = 'spec-' + p.id;
-          const numEl = existing ? existing.querySelector('.spec-num').textContent : '?';
-          el.innerHTML = `<div class="spec-num">${numEl}</div><div class="spec-name">${escapeHtml(p.name)}</div>`;
-          list.appendChild(el);
-        });
-      }
-    }
   }
 });
 

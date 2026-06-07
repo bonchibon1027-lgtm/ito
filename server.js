@@ -132,6 +132,8 @@ io.on('connection', (socket) => {
         topic: room.topic,
         cardOrder: room.cardOrder,
       });
+      // roomUpdatedを先に送ってからorderUpdated（プレイヤーリスト先に届かせる）
+      io.to(roomId).emit('roomUpdated', sanitizeRoom(room));
       io.to(roomId).emit('orderUpdated', room.cardOrder);
     } else if (isSpectator && room.phase === 'game') {
       socket.emit('gameStarted', {
