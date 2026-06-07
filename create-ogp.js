@@ -9,15 +9,15 @@ const canvas = createCanvas(W, H);
 const ctx = canvas.getContext('2d');
 
 // Background
-ctx.fillStyle = '#07090f';
+ctx.fillStyle = '#1a1a2e';
 ctx.fillRect(0, 0, W, H);
 
-// Top accent bar (gradient simulation)
+// Top accent bar (gradient)
 const topBar = ctx.createLinearGradient(0, 0, W, 0);
-topBar.addColorStop(0, '#00b4d8');
-topBar.addColorStop(1, '#0078d4');
+topBar.addColorStop(0, '#4c8bf5');
+topBar.addColorStop(1, '#5bc8f5');
 ctx.fillStyle = topBar;
-ctx.fillRect(0, 0, W, 5);
+ctx.fillRect(0, 0, W, 6);
 
 // Background card decorations
 const cards = [
@@ -30,69 +30,69 @@ const cards = [
 cards.forEach(({ x, y, num, op }) => {
   ctx.save();
   ctx.globalAlpha = op;
-  // Card shape
-  ctx.fillStyle = '#131922';
+  ctx.fillStyle = '#232336';
   roundRect(ctx, x, y, 140, 190, 16);
   ctx.fill();
-  ctx.strokeStyle = '#253045';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#3a3a58';
+  ctx.lineWidth = 2;
   roundRect(ctx, x, y, 140, 190, 16);
   ctx.stroke();
-  // Number
-  ctx.fillStyle = '#253045';
+  ctx.fillStyle = '#4a4a6a';
   ctx.font = 'bold 72px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(num, x + 70, y + 130);
   ctx.restore();
 });
 
-// Main title "ITO"
-const titleGrad = ctx.createLinearGradient(40, 0, 280, 0);
-titleGrad.addColorStop(0, '#00b4d8');
-titleGrad.addColorStop(1, '#0078d4');
+// Main title "KANDO"
+const titleGrad = ctx.createLinearGradient(40, 0, 380, 0);
+titleGrad.addColorStop(0, '#4c8bf5');
+titleGrad.addColorStop(1, '#5bc8f5');
 ctx.fillStyle = titleGrad;
-ctx.font = 'bold 150px sans-serif';
-ctx.textAlign = 'center';
+ctx.font = 'bold 120px sans-serif';
+ctx.textAlign = 'left';
 
 // Glow effect
-ctx.shadowColor = '#0078d4';
+ctx.shadowColor = '#4c8bf5';
 ctx.shadowBlur = 30;
-ctx.fillText('ITO', 160, 265);
+ctx.fillText('KANDO', 60, 240);
 ctx.shadowBlur = 0;
 
 // Japanese subtitle
-ctx.fillStyle = '#4a5568';
-ctx.font = '32px sans-serif';
-ctx.letterSpacing = '8px';
-ctx.fillText('糸', 160, 320);
+ctx.fillStyle = '#a0a0c0';
+ctx.font = 'bold 28px sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('カンド — 感覚をそろえろ', 64, 290);
 
 // Divider line
-ctx.strokeStyle = '#1c2535';
-ctx.lineWidth = 1;
+ctx.strokeStyle = '#3a3a58';
+ctx.lineWidth = 2;
 ctx.beginPath();
-ctx.moveTo(60, 350);
-ctx.lineTo(260, 350);
+ctx.moveTo(60, 320);
+ctx.lineTo(560, 320);
 ctx.stroke();
 
 // Description
-ctx.fillStyle = '#4a5568';
-ctx.font = '22px sans-serif';
-ctx.textAlign = 'center';
-ctx.fillText('数字で語るカードゲーム', 160, 395);
+ctx.fillStyle = '#a0a0c0';
+ctx.font = '24px sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('お題に対して、あなたの感覚は何点？', 64, 365);
+ctx.fillText('みんなと感覚をそろえよう！', 64, 398);
 
 // Tags
-drawTag(ctx, 60, 430, 145, 'オンライン対戦');
-drawTag(ctx, 215, 430, 100, '最大8人');
+drawTag(ctx, 64, 440, 160, 'オンライン対戦');
+drawTag(ctx, 234, 440, 110, '最大8人');
+drawTag(ctx, 354, 440, 80, '無料');
 
 // URL
-ctx.fillStyle = '#253045';
-ctx.font = '20px sans-serif';
+ctx.fillStyle = '#4a4a6a';
+ctx.font = '22px sans-serif';
 ctx.textAlign = 'center';
-ctx.fillText('ito-2yg4.onrender.com', 600, 575);
+ctx.fillText('ito-2yg4.onrender.com', 600, 585);
 
 // Border
-ctx.strokeStyle = '#1c2535';
-ctx.lineWidth = 1;
+ctx.strokeStyle = '#3a3a58';
+ctx.lineWidth = 2;
 ctx.strokeRect(1, 1, W - 2, H - 2);
 
 // Save
@@ -117,16 +117,16 @@ function roundRect(ctx, x, y, w, h, r) {
 
 function drawTag(ctx, x, y, w, text) {
   ctx.save();
-  ctx.fillStyle = '#0d1117';
-  roundRect(ctx, x, y, w, 36, 18);
+  ctx.fillStyle = '#2c2c44';
+  roundRect(ctx, x, y, w, 40, 20);
   ctx.fill();
-  ctx.strokeStyle = '#1c2535';
-  ctx.lineWidth = 1;
-  roundRect(ctx, x, y, w, 36, 18);
+  ctx.strokeStyle = '#4a4a6a';
+  ctx.lineWidth = 2;
+  roundRect(ctx, x, y, w, 40, 20);
   ctx.stroke();
-  ctx.fillStyle = '#4a5568';
-  ctx.font = '15px sans-serif';
+  ctx.fillStyle = '#a0a0c0';
+  ctx.font = 'bold 16px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(text, x + w / 2, y + 23);
+  ctx.fillText(text, x + w / 2, y + 26);
   ctx.restore();
 }
