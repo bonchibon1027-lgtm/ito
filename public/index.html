@@ -675,12 +675,36 @@ function init() {
     document.getElementById('join-code').readOnly = true;
     document.getElementById('join-title').textContent = 'ルームに参加';
     document.getElementById('join-name').focus();
-    return; // URLパラメータがあれば復帰モーダルは出さない
+    return;
   }
 
-  // 前回セッションの確認
   const session = loadSession();
-  if (session) showRejoinModal(session);
+  if (!session) return;
+
+  const isReload = !!sessionStorage.getItem('ito_active');
+
+  if (isReload) {
+    // リロード → 自動再接続
+    autoRejoin(session);
+  } else {
+    // 新規タブ/ブラウザ再起動 → 確認モーダル
+    showRejoinModal(session);
+  }
+}
+
+function autoRejoin(session) {
+  // 再接続中の表示
+  document.getElementById('screen-home').innerHTML =
+    '<div style="text-align:center;padding:3rem 1rem;color:var(--muted)"><div style="font-size:1.5rem;margin-bottom:0.8rem">🔄</div>再接続中...</div>';
+  showScreen('home');
+  state.pendingName = session.playerName;
+  state.pendingSpectator = session.isSpectator;
+  socket.emit('joinRoom', {
+    playerName: session.playerName,
+    roomId: session.roomId,
+    isSpectator: session.isSpectator,
+    clientId: getClientId(),
+  });
 }
 
 function drawRandomTopics() {
@@ -1005,6 +1029,7 @@ function flipCard(index, cardData, isLast) {
 
 function backToLobby() {
   clearSession();
+  sessionStorage.removeItem('ito_active');
   socket.emit('backToLobby');
 }
 
@@ -1066,11 +1091,11 @@ socket.on('roomJoined', ({ roomId, isHost, isSpectator, restored }) => {
   state.roomId = roomId;
   state.isHost = isHost;
   state.isSpectator = isSpectator;
-  // セッション保存
+  // セッション保存 + リロード用フラグ
   const name = state.pendingName || '';
   if (name) saveSession(roomId, name, isSpectator);
+  sessionStorage.setItem('ito_active', '1');
   if (!restored) showScreen('lobby');
-  // restoredの場合はgameStartedイベントで画面遷移する
 });
 
 socket.on('roomUpdated', room => {
@@ -1135,6 +1160,13 @@ socket.on('youAreHost', () => {
 });
 
 socket.on('error', msg => {
+  // 自動再接続が失敗した場合はホーム画面をリセット
+  if (state.phase === 'home') {
+    clearSession();
+    sessionStorage.removeItem('ito_active');
+    location.reload();
+    return;
+  }
   const screenMap = { home: 'home', lobby: 'lobby' };
   showError(screenMap[state.phase] || 'home', msg);
 });
