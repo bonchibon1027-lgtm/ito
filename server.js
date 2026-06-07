@@ -10,6 +10,7 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
 const rooms = {};
+const DISCONNECT_GRACE = 2 * 60 * 1000; // 2分
 
 function generateRoomId() {
   return Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -22,6 +23,7 @@ function sanitizeRoom(room) {
       id: p.id,
       name: p.name,
       isSpectator: p.isSpectator || false,
+      disconnected: p.disconnected || false,
       hasCard: p.card !== null,
     })),
   };
@@ -43,7 +45,7 @@ function assignCards(players) {
 
 io.on('connection', (socket) => {
 
-  socket.on('createRoom', ({ playerName }) => {
+  socket.on('createRoom', ({ playerName, clientId }) => {
     const name = playerName.trim().slice(0, 16);
     if (!name) return socket.emit('error', '名前を入力してください');
 
@@ -51,7 +53,7 @@ io.on('connection', (socket) => {
     rooms[roomId] = {
       id: roomId,
       hostId: socket.id,
-      players: [{ id: socket.id, name, card: null, isSpectator: false }],
+      players: [{ id: socket.id, clientId, name, card: null, isSpectator: false }],
       topic: '',
       phase: 'lobby',
       cardOrder: [],
@@ -62,22 +64,63 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('roomUpdated', sanitizeRoom(rooms[roomId]));
   });
 
-  socket.on('joinRoom', ({ playerName, roomId, isSpectator }) => {
+  socket.on('joinRoom', ({ playerName, roomId, isSpectator, clientId }) => {
     const name = playerName.trim().slice(0, 16);
     if (!name) return socket.emit('error', '名前を入力してください');
     const room = rooms[roomId];
     if (!room) return socket.emit('error', 'ルームが見つかりません');
     if (room.phase === 'reveal') return socket.emit('error', 'めくり中は参加できません');
+
+    // 同じclientIdの切断済みプレイヤーを探す
+    const existing = clientId ? room.players.find(p => p.clientId === clientId && p.disconnected) : null;
+
+    if (existing) {
+      // セッション復元
+      if (existing.disconnectTimer) clearTimeout(existing.disconnectTimer);
+      existing.id = socket.id;
+      existing.disconnected = false;
+      existing.disconnectTimer = null;
+      // cardOrderのIDも更新
+      const idx = room.cardOrder.indexOf(existing.id);
+      // cardOrderはまだ古いIDが残っている可能性があるので全更新
+      room.cardOrder = room.cardOrder.map(id => {
+        const p = room.players.find(p2 => p2.id === id);
+        return p ? p.id : id;
+      });
+      if (room.hostId === existing.id) {} // hostIdはsocket.idで追跡しないので問題なし
+
+      socket.join(roomId);
+      socket.roomId = roomId;
+      const isHost = room.hostId === socket.id;
+      socket.emit('roomJoined', { roomId, isHost, isSpectator: existing.isSpectator, restored: true });
+
+      if (existing.card) socket.emit('yourCard', { card: existing.card });
+
+      if (room.phase === 'game') {
+        socket.emit('gameStarted', {
+          room: sanitizeRoom(room),
+          topic: room.topic,
+          cardOrder: room.cardOrder,
+        });
+        if (existing.isSpectator) {
+          const allCards = activePlayers(room).filter(p => p.card).map(p => ({ id: p.id, name: p.name, card: p.card }));
+          socket.emit('spectatorCards', allCards);
+        }
+      }
+
+      io.to(roomId).emit('roomUpdated', sanitizeRoom(room));
+      return;
+    }
+
     if (!isSpectator && activePlayers(room).length >= 8) return socket.emit('error', 'ルームが満員です');
 
-    const newPlayer = { id: socket.id, name, card: null, isSpectator: !!isSpectator };
+    const newPlayer = { id: socket.id, clientId, name, card: null, isSpectator: !!isSpectator };
     room.players.push(newPlayer);
     socket.join(roomId);
     socket.roomId = roomId;
     socket.emit('roomJoined', { roomId, isHost: false, isSpectator: !!isSpectator });
 
     if (!isSpectator && room.phase === 'game') {
-      // ゲーム中途参加：カードを配って末尾に追加
       const used = new Set(activePlayers(room).filter(p => p.card).map(p => p.card));
       let card;
       do { card = Math.floor(Math.random() * 100) + 1; } while (used.has(card));
@@ -122,7 +165,7 @@ io.on('connection', (socket) => {
   socket.on('startGame', () => {
     const room = rooms[socket.roomId];
     if (!room || room.hostId !== socket.id) return;
-    const active = activePlayers(room);
+    const active = activePlayers(room).filter(p => !p.disconnected);
     if (active.length < 2) return socket.emit('error', '2人以上必要です');
     if (!room.topic) return socket.emit('error', 'お題を設定してください');
 
@@ -138,9 +181,8 @@ io.on('connection', (socket) => {
     active.forEach(p => {
       io.to(p.id).emit('yourCard', { card: p.card });
     });
-    // 観戦者には全カードを公開
     const allCards = active.map(p => ({ id: p.id, name: p.name, card: p.card }));
-    room.players.filter(p => p.isSpectator).forEach(p => {
+    room.players.filter(p => p.isSpectator && !p.disconnected).forEach(p => {
       io.to(p.id).emit('spectatorCards', allCards);
     });
   });
@@ -192,21 +234,41 @@ io.on('connection', (socket) => {
     const roomId = socket.roomId;
     if (!roomId || !rooms[roomId]) return;
     const room = rooms[roomId];
-    room.players = room.players.filter(p => p.id !== socket.id);
-    room.cardOrder = room.cardOrder.filter(id => id !== socket.id);
-    if (room.players.length === 0) {
-      delete rooms[roomId];
-      return;
+    const player = room.players.find(p => p.id === socket.id);
+
+    if (player) {
+      player.disconnected = true;
+      // 2分後に削除
+      player.disconnectTimer = setTimeout(() => {
+        room.players = room.players.filter(p => p.id !== socket.id);
+        room.cardOrder = room.cardOrder.filter(id => id !== socket.id);
+        if (room.players.filter(p => !p.disconnected).length === 0) {
+          delete rooms[roomId];
+          return;
+        }
+        if (room.hostId === socket.id) {
+          const next = room.players.find(p => !p.disconnected && !p.isSpectator)
+            || room.players.find(p => !p.disconnected);
+          if (next) {
+            room.hostId = next.id;
+            io.to(next.id).emit('youAreHost');
+          }
+        }
+        io.to(roomId).emit('roomUpdated', sanitizeRoom(room));
+      }, DISCONNECT_GRACE);
+
+      // ホストが切断した場合は即座に別の人をホストに
+      if (room.hostId === socket.id) {
+        const next = room.players.find(p => !p.disconnected && !p.isSpectator && p.id !== socket.id)
+          || room.players.find(p => !p.disconnected && p.id !== socket.id);
+        if (next) {
+          room.hostId = next.id;
+          io.to(next.id).emit('youAreHost');
+        }
+      }
     }
-    if (room.hostId === socket.id) {
-      const nextHost = activePlayers(room)[0] || room.players[0];
-      room.hostId = nextHost.id;
-      io.to(nextHost.id).emit('youAreHost');
-    }
+
     io.to(roomId).emit('roomUpdated', sanitizeRoom(room));
-    if (room.phase === 'game') {
-      io.to(roomId).emit('orderUpdated', room.cardOrder);
-    }
   });
 });
 
