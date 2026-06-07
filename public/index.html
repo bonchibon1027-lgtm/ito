@@ -431,6 +431,17 @@
 </head>
 <body>
 
+<!-- Rejoin Modal -->
+<div class="modal-overlay" id="rejoin-modal">
+  <div class="modal" style="text-align:center">
+    <div style="font-size:2rem;margin-bottom:0.8rem">🎴</div>
+    <h3 style="font-size:1rem;margin-bottom:0.6rem;color:var(--text);text-transform:none;letter-spacing:0">前回のゲームに参加しますか？</h3>
+    <p id="rejoin-info" style="margin-bottom:1.4rem;font-size:0.88rem;color:var(--muted)"></p>
+    <button class="btn-primary" onclick="rejoinGame()" style="margin-bottom:0.5rem">はい、参加する</button>
+    <button class="btn-ghost" onclick="dismissRejoin()">いいえ、最初から</button>
+  </div>
+</div>
+
 <!-- Rules Modal -->
 <div class="modal-overlay" id="rules-modal" onclick="if(event.target===this)closeRules()">
   <div class="modal">
@@ -664,7 +675,12 @@ function init() {
     document.getElementById('join-code').readOnly = true;
     document.getElementById('join-title').textContent = 'ルームに参加';
     document.getElementById('join-name').focus();
+    return; // URLパラメータがあれば復帰モーダルは出さない
   }
+
+  // 前回セッションの確認
+  const session = loadSession();
+  if (session) showRejoinModal(session);
 }
 
 function drawRandomTopics() {
@@ -710,6 +726,7 @@ function showError(screenId, msg) {
 function createRoom() {
   const name = document.getElementById('create-name').value.trim();
   if (!name) return showError('home', '名前を入力してください');
+  state.pendingName = name;
   socket.emit('createRoom', { playerName: name, clientId: getClientId() });
 }
 
@@ -718,6 +735,8 @@ function joinRoom(isSpectator = false) {
   const code = document.getElementById('join-code').value.trim().toUpperCase();
   if (!name) return showError('home', '名前を入力してください');
   if (!code) return showError('home', 'ルームコードを入力してください');
+  state.pendingName = name;
+  state.pendingSpectator = isSpectator;
   socket.emit('joinRoom', { playerName: name, roomId: code, isSpectator, clientId: getClientId() });
 }
 
@@ -985,6 +1004,7 @@ function flipCard(index, cardData, isLast) {
 }
 
 function backToLobby() {
+  clearSession();
   socket.emit('backToLobby');
 }
 
@@ -999,12 +1019,56 @@ function getClientId() {
   return id;
 }
 
+// セッション保存
+function saveSession(roomId, playerName, isSpectator) {
+  localStorage.setItem('ito_session', JSON.stringify({
+    roomId, playerName, isSpectator, ts: Date.now()
+  }));
+}
+function clearSession() {
+  localStorage.removeItem('ito_session');
+}
+function loadSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem('ito_session') || 'null');
+    if (!s) return null;
+    // 3分以上経過していたら無効
+    if (Date.now() - s.ts > 3 * 60 * 1000) { clearSession(); return null; }
+    return s;
+  } catch { return null; }
+}
+
+// 復帰モーダル
+function showRejoinModal(session) {
+  document.getElementById('rejoin-info').textContent =
+    `名前：${session.playerName}　ルーム：${session.roomId}`;
+  document.getElementById('rejoin-modal').classList.add('open');
+}
+function rejoinGame() {
+  const session = loadSession();
+  if (!session) { dismissRejoin(); return; }
+  document.getElementById('rejoin-modal').classList.remove('open');
+  socket.emit('joinRoom', {
+    playerName: session.playerName,
+    roomId: session.roomId,
+    isSpectator: session.isSpectator,
+    clientId: getClientId(),
+  });
+}
+function dismissRejoin() {
+  clearSession();
+  document.getElementById('rejoin-modal').classList.remove('open');
+}
+
 socket.on('connect', () => { state.myId = socket.id; });
 
 socket.on('roomJoined', ({ roomId, isHost, isSpectator, restored }) => {
   state.roomId = roomId;
   state.isHost = isHost;
   state.isSpectator = isSpectator;
+  // セッション保存
+  const name = state.pendingName || '';
+  if (name) saveSession(roomId, name, isSpectator);
   if (!restored) showScreen('lobby');
   // restoredの場合はgameStartedイベントで画面遷移する
 });
@@ -1037,6 +1101,9 @@ socket.on('gameStarted', ({ room, topic, cardOrder }) => {
 socket.on('yourCard', ({ card }) => {
   state.myCard = card;
   document.getElementById('my-card-number').textContent = card;
+  // タイムスタンプ更新（ゲーム中の切断でも3分以内なら復帰できるよう）
+  const s = loadSession();
+  if (s) saveSession(s.roomId, s.playerName, s.isSpectator);
 });
 
 socket.on('orderUpdated', cardOrder => {
