@@ -670,12 +670,36 @@ function init() {
   const params = new URLSearchParams(window.location.search);
   const roomParam = params.get('room');
   if (roomParam) {
-    document.getElementById('home-create').style.display = 'none';
-    document.getElementById('join-code').value = roomParam.toUpperCase();
-    document.getElementById('join-code').readOnly = true;
-    document.getElementById('join-title').textContent = 'ルームに参加';
-    document.getElementById('join-name').focus();
+    const savedName = getSavedName();
+    if (savedName) {
+      // 名前が保存済み → 即参加
+      document.getElementById('screen-home').innerHTML =
+        '<div style="text-align:center;padding:3rem 1rem;color:var(--muted)"><div style="font-size:1.5rem;margin-bottom:0.8rem">🔗</div>ルームに参加中...</div>';
+      showScreen('home');
+      state.pendingName = savedName;
+      state.pendingSpectator = false;
+      socket.emit('joinRoom', {
+        playerName: savedName,
+        roomId: roomParam.toUpperCase(),
+        isSpectator: false,
+        clientId: getClientId(),
+      });
+    } else {
+      // 初回 → 名前入力を求める
+      document.getElementById('home-create').style.display = 'none';
+      document.getElementById('join-code').value = roomParam.toUpperCase();
+      document.getElementById('join-code').readOnly = true;
+      document.getElementById('join-title').textContent = 'ルームに参加';
+      document.getElementById('join-name').focus();
+    }
     return;
+  }
+
+  // 保存済み名前を入力欄に反映
+  const savedName = getSavedName();
+  if (savedName) {
+    document.getElementById('create-name').value = savedName;
+    document.getElementById('join-name').value = savedName;
   }
 
   const session = loadSession();
@@ -750,6 +774,7 @@ function showError(screenId, msg) {
 function createRoom() {
   const name = document.getElementById('create-name').value.trim();
   if (!name) return showError('home', '名前を入力してください');
+  saveName(name);
   state.pendingName = name;
   socket.emit('createRoom', { playerName: name, clientId: getClientId() });
 }
@@ -759,6 +784,7 @@ function joinRoom(isSpectator = false) {
   const code = document.getElementById('join-code').value.trim().toUpperCase();
   if (!name) return showError('home', '名前を入力してください');
   if (!code) return showError('home', 'ルームコードを入力してください');
+  saveName(name);
   state.pendingName = name;
   state.pendingSpectator = isSpectator;
   socket.emit('joinRoom', { playerName: name, roomId: code, isSpectator, clientId: getClientId() });
@@ -1042,6 +1068,14 @@ function getClientId() {
     localStorage.setItem('ito_client_id', id);
   }
   return id;
+}
+
+// 名前を永続保存
+function saveName(name) {
+  if (name) localStorage.setItem('ito_player_name', name);
+}
+function getSavedName() {
+  return localStorage.getItem('ito_player_name') || '';
 }
 
 // セッション保存
