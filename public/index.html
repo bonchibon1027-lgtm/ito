@@ -752,27 +752,31 @@ function renderLobby(room) {
   ul.innerHTML = '';
   const participants = room.players.filter(p => !p.isSpectator);
   const spectators = room.players.filter(p => p.isSpectator);
+
   participants.forEach(p => {
     const li = document.createElement('li');
     const isHost = p.id === room.hostId;
     const isMe = p.id === socket.id;
+    if (p.disconnected) li.style.opacity = '0.4';
     li.innerHTML = `
       ${isHost ? '<span class="crown">👑</span>' : '<span style="width:1.2em;display:inline-block"></span>'}
       <span>${escapeHtml(p.name)}</span>
-      ${isMe ? '<span class="you">あなた</span>' : ''}
+      ${p.disconnected ? '<span style="font-size:0.7rem;color:var(--muted)">切断中...</span>' : ''}
+      ${isMe && !p.disconnected ? '<span class="you">あなた</span>' : ''}
     `;
     ul.appendChild(li);
   });
+
   if (spectators.length > 0) {
     const sep = document.createElement('li');
-    sep.style.cssText = 'background:none;color:#555;font-size:0.75rem;padding:0.3rem 0.5rem;';
+    sep.style.cssText = 'background:none;color:var(--muted);font-size:0.72rem;padding:0.3rem 0.5rem;border:none;';
     sep.textContent = '👁 観戦者';
     ul.appendChild(sep);
     spectators.forEach(p => {
       const li = document.createElement('li');
       const isMe = p.id === socket.id;
-      li.style.opacity = '0.6';
-      li.innerHTML = `<span style="width:1.2em;display:inline-block"></span><span>${escapeHtml(p.name)}</span>${isMe ? '<span class="you">あなた</span>' : ''}`;
+      if (p.disconnected) li.style.opacity = '0.4';
+      li.innerHTML = `<span style="width:1.2em;display:inline-block"></span><span>${escapeHtml(p.name)}</span>${p.disconnected ? '<span style="font-size:0.7rem;color:var(--muted)"> 切断中...</span>' : ''}${isMe ? '<span class="you">あなた</span>' : ''}`;
       ul.appendChild(li);
     });
   }
@@ -827,9 +831,14 @@ function renderOrderList() {
     token.draggable = true;
     token.dataset.id = playerId;
     const isMe = playerId === socket.id;
+    if (player.disconnected) {
+      token.style.opacity = '0.35';
+      token.style.borderStyle = 'dashed';
+    }
     token.innerHTML = `
       <span class="token-name">${escapeHtml(player.name)}</span>
-      ${isMe ? '<span class="token-you">あなた</span>' : ''}
+      ${player.disconnected ? '<span style="font-size:0.65rem;color:var(--muted)">切断中</span>' : ''}
+      ${isMe && !player.disconnected ? '<span class="token-you">あなた</span>' : ''}
     `;
     setupDrag(token);
     list.appendChild(token);
