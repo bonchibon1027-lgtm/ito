@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ito-game
+    env: node
+    buildCommand: "npm install && node create-ogp.js || echo 'OGP skip'"
+    startCommand: "node server.js"
+    envVars:
+      - key: NODE_ENV
+        value: production
