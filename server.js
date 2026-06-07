@@ -77,17 +77,13 @@ io.on('connection', (socket) => {
     if (existing) {
       // セッション復元
       if (existing.disconnectTimer) clearTimeout(existing.disconnectTimer);
+      const oldId = existing.id;
       existing.id = socket.id;
       existing.disconnected = false;
       existing.disconnectTimer = null;
-      // cardOrderのIDも更新
-      const idx = room.cardOrder.indexOf(existing.id);
-      // cardOrderはまだ古いIDが残っている可能性があるので全更新
-      room.cardOrder = room.cardOrder.map(id => {
-        const p = room.players.find(p2 => p2.id === id);
-        return p ? p.id : id;
-      });
-      if (room.hostId === existing.id) {} // hostIdはsocket.idで追跡しないので問題なし
+      // cardOrderとhostIdの古いIDを新しいsocket.idに更新
+      room.cardOrder = room.cardOrder.map(id => id === oldId ? socket.id : id);
+      if (room.hostId === oldId) room.hostId = socket.id;
 
       socket.join(roomId);
       socket.roomId = roomId;
