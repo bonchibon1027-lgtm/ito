@@ -1,7 +1,7 @@
 {
-  "name": "kando-game",
+  "name": "ito-game",
   "version": "1.0.0",
-  "description": "KANDO - 感覚をそろえろ！数字で語るオンラインゲーム",
+  "description": "Ito card game online",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

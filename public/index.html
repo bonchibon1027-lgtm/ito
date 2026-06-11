@@ -3,24 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KANDO | カンド — 感覚をそろえろ！数字で語るゲーム</title>
-<meta name="description" content="お題に対して、あなたの感覚は何点？1〜100の数字で表現して、みんなと感覚をそろえよう！無料オンライン対戦ゲーム「KANDO」">
+<title>ITO | 糸 — 数字で語るカードゲーム</title>
+<meta name="description" content="1〜100の数字カードをお題に沿って並べるカードゲーム「ITO」のオンライン版。友達を招待してプレイしよう！">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://ito-2yg4.onrender.com/">
-<meta property="og:title" content="KANDO | カンド — 感覚をそろえろ！">
-<meta property="og:description" content="お題に対して、あなたの感覚は何点？1〜100の数字で表現して、みんなと感覚をそろえよう！無料オンライン対戦ゲーム">
+<meta property="og:title" content="ITO | 糸 — 数字で語るカードゲーム">
+<meta property="og:description" content="1〜100の数字カードをお題に沿って並べるカードゲーム「ITO」のオンライン版。友達を招待してプレイしよう！">
 <meta property="og:image" content="https://ito-2yg4.onrender.com/ogp.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:site_name" content="KANDO Online">
+<meta property="og:site_name" content="ITO Online">
 <meta property="og:locale" content="ja_JP">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="KANDO | カンド — 感覚をそろえろ！">
-<meta name="twitter:description" content="お題に対して、あなたの感覚は何点？1〜100の数字で表現して、みんなと感覚をそろえよう！無料オンライン対戦ゲーム">
+<meta name="twitter:title" content="ITO | 糸 — 数字で語るカードゲーム">
+<meta name="twitter:description" content="1〜100の数字カードをお題に沿って並べるカードゲーム「ITO」のオンライン版。友達を招待してプレイしよう！">
 <meta name="twitter:image" content="https://ito-2yg4.onrender.com/ogp.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6868422392824694" crossorigin="anonymous"></script>
 <script src="/socket.io/socket.io.js"></script>
 <style>
   :root {
@@ -552,7 +551,7 @@
 <!-- Rules Modal -->
 <div class="modal-overlay" id="rules-modal" onclick="if(event.target===this)closeRules()">
   <div class="modal">
-    <h3>🎯 KANDOのルール</h3>
+    <h3>🎴 ITOのルール</h3>
     <p>1〜100の数字カードを使って、みんなで協力してカードを小さい順に並べるゲームです。</p>
     <ol>
       <li>ホストがお題を決めてゲームスタート</li>
@@ -569,10 +568,10 @@
 
 <header class="site-header">
   <div class="logo">
-    <span class="logo-ito">KAN<span>D</span>O</span>
-    <p class="logo-sub">感覚をそろえろ</p>
+    <span class="logo-ito">I<span>T</span>O</span>
+    <span class="logo-kanji">糸</span>
   </div>
-  <p class="site-tagline">あなたの感覚は何点？ — Online</p>
+  <p class="site-tagline">Number Card Game — Online</p>
   <div class="score-bar" id="score-bar">
     <span class="score-item score-win">✓ <span id="score-wins">0</span> 勝</span>
     <span class="score-sep">|</span>
@@ -912,7 +911,7 @@ let state = {
 
 // Score (localStorage)
 let score = { wins: 0, losses: 0 };
-try { score = JSON.parse(localStorage.getItem('kando_score') || '{"wins":0,"losses":0}'); } catch(e) {}
+try { score = JSON.parse(localStorage.getItem('ito_score') || '{"wins":0,"losses":0}'); } catch(e) {}
 let lastRevealSuccess = false;
 
 // ---- Init ----
@@ -949,7 +948,7 @@ function init() {
 
   const session = loadSession();
   if (!session) return;
-  const isReload = !!sessionStorage.getItem('kando_active');
+  const isReload = !!sessionStorage.getItem('ito_active');
   if (isReload) {
     autoRejoin(session);
   } else {
@@ -1449,7 +1448,7 @@ function flipCard(index, cardData, isLast) {
 
 function backToLobby() {
   clearSession();
-  sessionStorage.removeItem('kando_active');
+  sessionStorage.removeItem('ito_active');
   stopClientTimer();
   socket.emit('backToLobby');
 }
@@ -1494,7 +1493,7 @@ function calculateAndRenderStats(allCorrect) {
 function getShareText() {
   const result = lastRevealSuccess ? '成功！🎉' : '失敗...😢';
   const cards = revealCards.filter(p => p.card).map(p => `${p.name}：${p.card}`).join(' / ');
-  return `🎯 KANDO | カンド  ラウンド${state.round}\nお題：「${state.topic}」\n結果：${result}\n${cards}\nhttps://ito-2yg4.onrender.com/`;
+  return `🎴 ITO | 糸  ラウンド${state.round}\nお題：「${state.topic}」\n結果：${result}\n${cards}\nhttps://ito-2yg4.onrender.com/`;
 }
 
 function shareToLine() {
@@ -1622,7 +1621,7 @@ function updateChatBadge() {
 }
 
 // ---- Score ----
-function saveScore() { localStorage.setItem('kando_score', JSON.stringify(score)); }
+function saveScore() { localStorage.setItem('ito_score', JSON.stringify(score)); }
 function updateScoreDisplay() {
   document.getElementById('score-wins').textContent   = score.wins;
   document.getElementById('score-losses').textContent = score.losses;
@@ -1662,19 +1661,19 @@ function acceptSuggestion(topic, toastEl) {
 
 // ---- Persistence ----
 function getClientId() {
-  let id = localStorage.getItem('kando_client_id');
-  if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('kando_client_id', id); }
+  let id = localStorage.getItem('ito_client_id');
+  if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('ito_client_id', id); }
   return id;
 }
-function saveName(name)  { if (name) localStorage.setItem('kando_player_name', name); }
-function getSavedName()  { return localStorage.getItem('kando_player_name') || ''; }
+function saveName(name)  { if (name) localStorage.setItem('ito_player_name', name); }
+function getSavedName()  { return localStorage.getItem('ito_player_name') || ''; }
 function saveSession(roomId, playerName, isSpectator) {
-  localStorage.setItem('kando_session', JSON.stringify({ roomId, playerName, isSpectator, ts: Date.now() }));
+  localStorage.setItem('ito_session', JSON.stringify({ roomId, playerName, isSpectator, ts: Date.now() }));
 }
-function clearSession() { localStorage.removeItem('kando_session'); }
+function clearSession() { localStorage.removeItem('ito_session'); }
 function loadSession() {
   try {
-    const s = JSON.parse(localStorage.getItem('kando_session') || 'null');
+    const s = JSON.parse(localStorage.getItem('ito_session') || 'null');
     if (!s) return null;
     if (Date.now() - s.ts > 3 * 60 * 1000) { clearSession(); return null; }
     return s;
@@ -1712,7 +1711,7 @@ socket.on('roomJoined', ({ roomId, isHost, isSpectator, restored, color }) => {
   state.myColor     = color || '#0078d4';
   const name = state.pendingName || '';
   if (name) saveSession(roomId, name, isSpectator);
-  sessionStorage.setItem('kando_active', '1');
+  sessionStorage.setItem('ito_active', '1');
   if (!restored) showScreen('lobby');
 });
 
@@ -1790,7 +1789,7 @@ socket.on('chat', (data) => {
 
 socket.on('kicked', () => {
   clearSession();
-  sessionStorage.removeItem('kando_active');
+  sessionStorage.removeItem('ito_active');
   state.roomId = null;
   stopClientTimer();
   document.getElementById('chat-toggle').classList.remove('visible');
@@ -1830,7 +1829,7 @@ socket.on('spectatorCards', (allCards) => {
 socket.on('error', msg => {
   if (state.phase === 'home') {
     clearSession();
-    sessionStorage.removeItem('kando_active');
+    sessionStorage.removeItem('ito_active');
     location.reload();
     return;
   }
@@ -1857,7 +1856,7 @@ init();
   text-align: center; font-size: 0.8rem; color: var(--muted);
   background: var(--surface);
 ">
-  <div style="margin-bottom: 0.6rem; font-weight: 700; color: var(--text); font-size: 0.9rem; letter-spacing: 0.1em;">KANDO</div>
+  <div style="margin-bottom: 0.6rem; font-weight: 700; color: var(--text); font-size: 0.9rem; letter-spacing: 0.1em;">ITO | 糸</div>
   <div style="display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.8rem;">
     <a href="/terms" style="color: var(--muted); text-decoration: none;">利用規約</a>
     <a href="/privacy" style="color: var(--muted); text-decoration: none;">プライバシーポリシー</a>
